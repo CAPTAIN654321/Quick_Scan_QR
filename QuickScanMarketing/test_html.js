@@ -1,0 +1,1 @@
+fetch('http://localhost:5000/qr/all').then(res=>res.json()).then(data=>{ if(data.length>0) { const id=data[0]._id; fetch('http://localhost:5000/qr/scan/'+id).then(r=>r.text()).then(t=>{ if(t.includes('/qr/track/'+id)) console.log('SUCCESS_INTERPOLATED'); else if(t.includes('${qr._id}')) console.log('FAILED_NOT_INTERPOLATED'); else console.log('UNKNOWN'); }); } })
