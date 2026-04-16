@@ -57,8 +57,8 @@ app.get('/update',(req,res) =>{
 
 
 
-app.listen(port, () => {
-    console.log('server started');
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server started on http://0.0.0.0:${port} (also accessible at http://192.168.29.102:${port})`);
     
     // Auto-seed Admin Accounts on Startup
     const User = require('./models/userModel');

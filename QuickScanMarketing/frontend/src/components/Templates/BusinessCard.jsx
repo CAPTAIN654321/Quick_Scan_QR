@@ -4,6 +4,9 @@ import { Phone, Mail, Globe, Briefcase } from 'lucide-react';
 export default function BusinessCard({ config }) {
   const { company, role, phone, email, accentColor } = config;
 
+  const displayCompany = typeof company === 'object' ? company.text : company;
+  const displayRole = typeof role === 'object' ? role.text : role;
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6 text-slate-800">
       <div className="max-w-md w-full bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-in slide-in-from-bottom-10 duration-700">
@@ -15,8 +18,8 @@ export default function BusinessCard({ config }) {
         
         <div className="pt-16 pb-10 px-8 text-center space-y-6">
           <div className="space-y-1">
-            <h2 className="text-2xl font-black tracking-tight">{company || "TechNova Inc."}</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{role || "Solutions Architect"}</p>
+            <h2 className="text-2xl font-black tracking-tight">{displayCompany || "TechNova Inc."}</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{displayRole || "Solutions Architect"}</p>
           </div>
 
           <div className="h-[1px] w-12 bg-slate-100 mx-auto"></div>

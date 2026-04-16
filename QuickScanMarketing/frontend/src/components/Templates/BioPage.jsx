@@ -3,16 +3,19 @@ import React from 'react';
 export default function BioPage({ config }) {
   const { title, bio, bgColor, textColor, links } = config;
   
+  const displayTitle = typeof title === 'object' ? title.text : title;
+  const displayBio = typeof bio === 'object' ? bio.text : bio;
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ backgroundColor: bgColor || '#0f172a', color: textColor || '#ffffff' }}>
       <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in duration-700">
         <div className="w-24 h-24 bg-white/10 rounded-full mx-auto flex items-center justify-center border border-white/20 shadow-2xl">
-          <span className="text-4xl font-black italic">{title?.[0] || 'V'}</span>
+          <span className="text-4xl font-black italic">{displayTitle?.[0] || 'V'}</span>
         </div>
         
         <div className="space-y-2">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter">{title || "Your Name"}</h1>
-          <p className="text-sm opacity-70 font-medium tracking-wide">{bio || "Your short bio goes here."}</p>
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter">{displayTitle || "Your Name"}</h1>
+          <p className="text-sm opacity-70 font-medium tracking-wide">{displayBio || "Your short bio goes here."}</p>
         </div>
 
         <div className="w-16 h-1 bg-linear-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>

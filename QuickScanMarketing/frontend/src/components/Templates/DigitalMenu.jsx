@@ -4,6 +4,9 @@ import { UtensilsCrossed, Star } from 'lucide-react';
 export default function DigitalMenu({ config }) {
   const { restaurantName, tagline, menuItems, themeColor } = config;
 
+  const displayRestaurantName = typeof restaurantName === 'object' ? restaurantName.text : restaurantName;
+  const displayTagline = typeof tagline === 'object' ? tagline.text : tagline;
+
   return (
     <div className="min-h-screen bg-[#FFFBF0] flex flex-col p-6 font-serif">
       <div className="max-w-md w-full mx-auto space-y-10 animate-in fade-in duration-1000">
@@ -13,10 +16,10 @@ export default function DigitalMenu({ config }) {
             <UtensilsCrossed size={32} style={{ color: themeColor || '#ea580c' }} />
           </div>
           <h1 className="text-4xl font-black italic tracking-tighter" style={{ color: themeColor || '#ea580c' }}>
-            {restaurantName || "The Spice Hub"}
+            {displayRestaurantName || "The Spice Hub"}
           </h1>
           <p className="text-slate-600 text-sm font-medium italic tracking-wide">
-            {tagline || "Experience the Authentic Taste"}
+            {displayTagline || "Experience the Authentic Taste"}
           </p>
         </header>
 

@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --font-outfit: 'Outfit', sans-serif;
+    --font-inter: 'Inter', sans-serif;
+  }
+  body {
+    @apply bg-[#0B132B] text-white;
+    font-family: var(--font-outfit);
+  }
   * {
     scroll-behavior: smooth;
   }

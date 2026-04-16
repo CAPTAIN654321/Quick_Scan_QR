@@ -12,13 +12,14 @@ export default function ViewTemplate() {
 
   useEffect(() => {
     // Optimized fetch using the specific getbyid endpoint
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/qr/getbyid/${id}`)
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+    fetch(`${apiUrl}/qr/getbyid/${id}`)
       .then(res => res.json())
       .then(found => {
         if (found && found.template) {
           setQrData(found);
           // Now fetch the template name
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/template/all`)
+          fetch(`${apiUrl}/template/all`)
             .then(res => res.json())
             .then(templates => {
               const temp = templates.find(t => t._id === found.template);

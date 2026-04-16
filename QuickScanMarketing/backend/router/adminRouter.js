@@ -2,19 +2,23 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/userModel');
 const QR = require('../models/qrModel');
+const Order = require('../models/orderModel');
 const { verifyAdmin } = require('../middlewares/verifyToken');
 
 // Global metrics for admin dashboard
 router.get('/metrics', verifyAdmin, async (req, res) => {
     try {
         const userCount = await User.countDocuments();
-        const qrList = await QR.find();
-        const scanCount = qrList.reduce((acc, curr) => acc + (curr.scanCount || 0), 0);
+        const metricsData = await QR.aggregate([
+            { $group: { _id: null, qrCount: { $sum: 1 }, totalScans: { $sum: "$scanCount" } } }
+        ]);
+        const orderCount = await Order.countDocuments();
         
         res.json({
             userCount,
-            qrCount: qrList.length,
-            scanCount,
+            qrCount: metricsData[0]?.qrCount || 0,
+            scanCount: metricsData[0]?.totalScans || 0,
+            orderCount,
             status: 'Operational'
         });
     } catch (err) {
@@ -32,7 +36,7 @@ router.get('/users', verifyAdmin, async (req, res) => {
     }
 });
 
-router.get('/delete-user/:id', verifyAdmin, async (req, res) => {
+router.delete('/delete-user/:id', verifyAdmin, async (req, res) => {
     try {
         await User.findByIdAndDelete(req.params.id);
         res.json({ message: 'User deleted successfully' });
@@ -44,14 +48,54 @@ router.get('/delete-user/:id', verifyAdmin, async (req, res) => {
 // Matrix Node Registry
 router.get('/qrs', verifyAdmin, async (req, res) => {
     try {
-        const qrs = await QR.find();
+        const qrs = await QR.find({}, { scans: { $slice: -5 } }).sort({ createdAt: -1 });
         res.json(qrs);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Any other admin-specific global commands can go here
+// Physical Order Registry
+router.get('/orders', verifyAdmin, async (req, res) => {
+    try {
+        const orders = await Order.find().sort({ createdAt: -1 });
+        res.json(orders);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// User Telemetry Feed (Aggregated Scans)
+router.get('/telemetry', verifyAdmin, async (req, res) => {
+    try {
+        // Optimized: Fetch only needed nodes and limit total scans to top 100 across all nodes
+        const qrs = await QR.find({}, { scans: { $slice: -30 }, customConfig: 1, link: 1 }).sort({ 'scans.timestamp': -1 }).limit(100);
+        
+        let allScans = [];
+        qrs.forEach(qr => {
+            if (qr.scans && qr.scans.length > 0) {
+                let nodeTitle = 'Dynamic Node';
+                if (qr.customConfig && qr.customConfig.title) {
+                    nodeTitle = typeof qr.customConfig.title === 'object' ? qr.customConfig.title.text : qr.customConfig.title;
+                }
+                
+                const qrScans = qr.scans.map(scan => ({
+                    ...scan.toObject(),
+                    qrId: qr._id,
+                    qrLink: qr.link,
+                    nodeTitle: nodeTitle
+                }));
+                allScans = [...allScans, ...qrScans];
+            }
+        });
+        
+        allScans.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
+        res.json(allScans);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/system-status', verifyAdmin, (req, res) => {
     res.json({
         integrity: 'Secure',

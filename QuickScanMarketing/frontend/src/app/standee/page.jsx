@@ -25,7 +25,7 @@ export default function CreateStandee() {
   const [footer, setFooter] = useState("Quick Scan Marketing Ecosystem");
   const [textColors, setTextColors] = useState({ title: '#ffffff', subtitle: '#64748b' });
   const [theme, setTheme] = useState({ name: 'Neon Blue', from: 'from-blue-600', to: 'to-cyan-400', shadow: 'shadow-blue-500/50' });
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
 
   // Text Nodes State
   const [addedTexts, setAddedTexts] = useState([]);

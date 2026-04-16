@@ -122,4 +122,61 @@ router.post('/authenticate', async (req,res) => {
     }
 });
 
+
+// Send OTP for Password Reset
+router.post('/send-otp', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await Model.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Save OTP to user record (valid for 10 minutes)
+        user.resetOtp = otp;
+        user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+        await user.save();
+
+        // SIMULATED EMAIL SENDING (Logs to console)
+        console.log('====================================');
+        console.log(`PASS RESET OTP FOR ${email}: ${otp}`);
+        console.log('====================================');
+
+        res.status(200).json({ message: 'OTP sent to your email (Check console for test mode)' });
+    } catch (err) {
+        console.error('OTP SEND ERROR:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Reset Password using OTP
+router.post('/reset-password', async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    try {
+        const user = await Model.findOne({ 
+            email, 
+            resetOtp: otp, 
+            resetOtpExpires: { $gt: Date.now() } 
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        // Update password and clear OTP fields
+        user.password = newPassword;
+        user.resetOtp = undefined;
+        user.resetOtpExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful. You can now login.' });
+    } catch (err) {
+        console.error('PASSWORD RESET ERROR:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 module.exports = router;

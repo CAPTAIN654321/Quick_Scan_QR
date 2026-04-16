@@ -59,7 +59,7 @@ const Signup = () => {
             </blockquote>
         </div>
         <img 
-          src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop" 
+          src="/hero.png" 
           alt="Signup background" 
           className="h-full w-full object-cover"
         />
@@ -91,7 +91,7 @@ const Signup = () => {
                 onChange={signupForm.handleChange}
                 onBlur={signupForm.handleBlur}
                 value={signupForm.values.name}
-                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors ${signupForm.errors.name && signupForm.touched.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
+                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors text-slate-900 ${signupForm.errors.name && signupForm.touched.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
                 placeholder="Jane Doe"
               />
               {signupForm.errors.name && signupForm.touched.name && (
@@ -108,7 +108,7 @@ const Signup = () => {
                 onChange={signupForm.handleChange}
                 onBlur={signupForm.handleBlur}
                 value={signupForm.values.email}
-                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors ${signupForm.errors.email && signupForm.touched.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
+                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors text-slate-900 ${signupForm.errors.email && signupForm.touched.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
                 placeholder="you@email.com"
               />
               {signupForm.errors.email && signupForm.touched.email && (
@@ -125,7 +125,7 @@ const Signup = () => {
                 onChange={signupForm.handleChange}
                 onBlur={signupForm.handleBlur}
                 value={signupForm.values.password}
-                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors ${signupForm.errors.password && signupForm.touched.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
+                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors text-slate-900 ${signupForm.errors.password && signupForm.touched.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
                 placeholder="••••••••"
               />
               {signupForm.errors.password && signupForm.touched.password && (
@@ -142,7 +142,7 @@ const Signup = () => {
                 onChange={signupForm.handleChange}
                 onBlur={signupForm.handleBlur}
                 value={signupForm.values.confirmPassword}
-                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors ${signupForm.errors.confirmPassword && signupForm.touched.confirmPassword ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
+                className={`mt-1 block w-full rounded-2xl border px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:text-sm transition-colors text-slate-900 ${signupForm.errors.confirmPassword && signupForm.touched.confirmPassword ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}`}
                 placeholder="••••••••"
               />
               {signupForm.errors.confirmPassword && signupForm.touched.confirmPassword && (

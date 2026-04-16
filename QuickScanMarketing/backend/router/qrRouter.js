@@ -33,10 +33,8 @@ try{
 });
 router.get("/all", async (req, res) => {
     try {
-        const qrList = await QR.find();
-        // #region agent log
-        fetch('http://127.0.0.1:7741/ingest/add3f7de-0384-48eb-86e9-6555b454a1f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02964d'},body:JSON.stringify({sessionId:'02964d',runId:'run-1',hypothesisId:'H3',location:'backend/router/qrRouter.js:33',message:'qr all fetched',data:{isArray:Array.isArray(qrList),count:Array.isArray(qrList)?qrList.length:-1,firstId:Array.isArray(qrList)&&qrList[0]?String(qrList[0]._id):null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        // Optimized: Only fetch the last 10 scans to reduce payload size on low connectivity
+        const qrList = await QR.find({}, { scans: { $slice: -10 } }).sort({ createdAt: -1 });
         if (!qrList) {
             return res.json([]);
         }
@@ -84,6 +82,12 @@ router.get("/scan/:id", async (req,res)=>{
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Quick Scan | Secure Verification</title>
             <script src="https://cdn.tailwindcss.com"></script>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+            <style>
+                body { font-family: 'Outfit', sans-serif; }
+            </style>
         </head>
         <body class="bg-[#0B132B] text-white min-h-screen flex items-center justify-center p-6 italic">
             <div class="max-w-md w-full bg-[#14213D] rounded-3xl p-10 border border-white/5 shadow-2xl text-center space-y-8 relative overflow-hidden">
@@ -137,7 +141,9 @@ router.get("/scan/:id", async (req,res)=>{
                             body: JSON.stringify({ lat, lng, name, email })
                         });
                         const data = await response.json();
-                        const frontendUrl = "${process.env.FRONTEND_URL || 'http://localhost:3000'}";
+                        const envFrontend = "${process.env.FRONTEND_URL || ''}";
+                        const defaultFrontendUrl = window.location.protocol + '//' + window.location.hostname + ':3000';
+                        const frontendUrl = envFrontend || defaultFrontendUrl;
                         
                         if(data.useTemplate) {
                             const target = frontendUrl + '/view/' + '${qr._id}';
@@ -378,7 +384,7 @@ router.post("/delete-multiple", async (req, res) => {
 
 router.post("/save-lead", async (req, res) => {
     try {
-        const { name, email, phoneNumber, qrId, targetUrl } = req.body;
+        const { name, email, phoneNumber, qrId, targetUrl, lat, lng } = req.body;
         
         if (!name || !email || !phoneNumber || !targetUrl) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -393,6 +399,42 @@ router.post("/save-lead", async (req, res) => {
         });
 
         await newLead.save();
+
+        // Also update the scans array in the QR model to show lead data and GPS location
+        if (qrId) {
+            const qr = await QR.findById(qrId);
+            if (qr && qr.scans && qr.scans.length > 0) {
+                // Find the most recent scan for this IP (roughly matching the user)
+                const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || "0.0.0.0").replace('::ffff:', '');
+                const lastScanIndex = [...qr.scans].reverse().findIndex(s => s.ip === ip);
+                
+                if (lastScanIndex !== -1) {
+                    const actualIndex = qr.scans.length - 1 - lastScanIndex;
+                    qr.scans[actualIndex].name = name;
+                    qr.scans[actualIndex].email = email;
+                    qr.scans[actualIndex].phoneNumber = phoneNumber;
+
+                    // Update location from GPS if provided
+                    if (lat && lng) {
+                        let locationString = `GPS [${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}]`;
+                        try {
+                            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+                            const geoData = await geoRes.json();
+                            if (geoData && geoData.city) {
+                                locationString = `${geoData.city}, ${geoData.principalSubdivision || geoData.countryName}`;
+                            } else if (geoData && geoData.locality) {
+                                locationString = `${geoData.locality}, ${geoData.countryName}`;
+                            }
+                        } catch (err) {
+                            // Keep coordinates if lookup fails
+                        }
+                        qr.scans[actualIndex].location = locationString;
+                    }
+                    await qr.save();
+                }
+            }
+        }
+
         res.status(201).json({ message: "Lead saved successfully" });
     } catch (error) {
         res.status(500).json({ error: error.message });

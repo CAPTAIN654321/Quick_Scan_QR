@@ -41,7 +41,7 @@ export default function Generate() {
   
   const [qrValue, setQrValue] = useState("");
   const [generatedId, setGeneratedId] = useState(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
   
   // Customization State
   const [fgColor, setFgColor] = useState("#000000");

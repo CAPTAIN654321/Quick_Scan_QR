@@ -4,6 +4,10 @@ import { Calendar, MapPin, Clock, Ticket } from 'lucide-react';
 export default function EventInvite({ config }) {
   const { eventName, date, location, description, primaryColor } = config;
 
+  const displayEventName = typeof eventName === 'object' ? eventName.text : eventName;
+  const displayDescription = typeof description === 'object' ? description.text : description;
+  const displayLocation = typeof location === 'object' ? location.text : location;
+
   return (
     <div className="min-h-screen bg-[#0E0E0E] text-white flex items-center justify-center p-6 relative overflow-hidden">
       {/* Abstract Background Blur */}
@@ -14,13 +18,13 @@ export default function EventInvite({ config }) {
         <header className="text-center space-y-4">
            <div className="inline-block px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-[0.4em]">Exclusive Event</div>
            <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">
-             {eventName || "Summer Tech Meetup"}
+             {displayEventName || "Summer Tech Meetup"}
            </h1>
         </header>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 space-y-8 shadow-2xl">
            <p className="text-slate-400 text-sm leading-relaxed font-medium">
-             {description || "Join us for an evening of networking and tech talks with industry leaders."}
+             {displayDescription || "Join us for an evening of networking and tech talks with industry leaders."}
            </p>
 
            <div className="grid gap-6">
@@ -40,7 +44,7 @@ export default function EventInvite({ config }) {
                  </div>
                  <div className="flex flex-col">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Location</span>
-                    <span className="text-sm font-bold">{location || "Silicon Valley, CA"}</span>
+                    <span className="text-sm font-bold">{displayLocation || "Silicon Valley, CA"}</span>
                  </div>
               </div>
            </div>

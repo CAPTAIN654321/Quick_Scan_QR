@@ -5,6 +5,7 @@ import QRCode from 'react-qr-code';
 
 
 const QRGenerator = () => {
+  const [link, setLink] = React.useState('');
   return (
     <div style={{textAlign:"center", padding:"40px"}}>
         <h2>Generate QR code</h2>

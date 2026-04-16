@@ -10,7 +10,19 @@ const orderSchema = new Schema({
     totalPrice: { type: Number },
     quantity: { type: Number, default: 1 },
     status: { type: String, default: 'Pending' },
-    paymentStatus: { type: String, default: 'Pending' }
+    paymentStatus: { type: String, default: 'Pending' },
+    paymentMethod: { type: String, default: 'Credit Card' },
+    deliveryAgentNumber: { type: String, default: '' },
+    address: {
+        fullName: String,
+        email: String,
+        phone: String,
+        street: String,
+        city: String,
+        state: String,
+        zipCode: String,
+        country: String
+    }
 }, { timestamps: true });
 
 module.exports = model('Orders', orderSchema);

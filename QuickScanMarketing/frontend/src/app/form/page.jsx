@@ -17,7 +17,23 @@ const FormContent = () => {
     email: "",
     phoneNumber: "",
   });
+  const [location, setLocation] = useState({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => console.log("Location access denied or unavailable"),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,8 +44,10 @@ const FormContent = () => {
 
     setLoading(true);
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/qr/save-lead`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+      await axios.post(`${apiUrl}/qr/save-lead`, {
         ...formData,
+        ...location,
         qrId,
         targetUrl,
       });

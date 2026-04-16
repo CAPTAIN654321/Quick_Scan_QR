@@ -5,17 +5,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   Users, QrCode, Globe, Shield, Activity, Zap, BarChart3, 
-  Menu, X, Search, Trash2, ShieldCheck, Home, Terminal
+  Menu, X, Search, Trash2, ShieldCheck, Home, Terminal, LogOut,
+  ShoppingBag, MapPin, CreditCard, CheckCircle2, Clock, XCircle,
+  Smartphone, Mail, Map as MapIcon, Database, ArrowRight, ChevronLeft,
+  User
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminDashboard() {
   const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
   const [users, setUsers] = useState([]);
   const [qrList, setQrList] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [telemetry, setTelemetry] = useState([]);
+  const [metrics, setMetrics] = useState({ userCount: 0, qrCount: 0, scanCount: 0, orderCount: 0 });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("overview"); // overview, users, qrs, activity
+  const [view, setView] = useState("overview"); // overview, users, qrs, orders, telemetry
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -24,16 +38,27 @@ export default function AdminDashboard() {
       const headers = { 'Authorization': `Bearer ${token}` };
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-      const [usersRes, qrRes] = await Promise.all([
+      const [usersRes, qrRes, orderRes, metricsRes, telemetryRes] = await Promise.all([
         fetch(`${apiUrl}/admin/users`, { headers }),
-        fetch(`${apiUrl}/admin/qrs`, { headers })
+        fetch(`${apiUrl}/admin/qrs`, { headers }),
+        fetch(`${apiUrl}/admin/orders`, { headers }),
+        fetch(`${apiUrl}/admin/metrics`, { headers }),
+        fetch(`${apiUrl}/admin/telemetry`, { headers })
       ]);
 
-      const usersData = await usersRes.json();
-      const qrData = await qrRes.json();
+      const [uData, qData, oData, mData, tData] = await Promise.all([
+        usersRes.json(),
+        qrRes.json(),
+        orderRes.json(),
+        metricsRes.json(),
+        telemetryRes.json()
+      ]);
 
-      setUsers(usersData);
-      setQrList(qrData);
+      setUsers(uData || []);
+      setQrList(qData || []);
+      setOrders(oData || []);
+      setTelemetry(tData || []);
+      setMetrics(mData || { userCount: 0, qrCount: 0, scanCount: 0, orderCount: 0 });
     } catch (err) {
       console.error("Error fetching admin data:", err);
       toast.error("Failed to load metrics");
@@ -43,49 +68,76 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    // Check if user is admin
     const userData = localStorage.getItem('user');
-    console.log('Admin Dashboard Access Check:', userData);
     if (!userData) {
-      console.log('No user data found, redirecting to login');
       router.push('/login');
       return;
     }
     const user = JSON.parse(userData);
     if (user.role !== 'admin') {
-      console.log('User role mismatch:', user.role, 'expected admin');
       toast.error("Access denied. Admin only.");
       router.push('/dashboard');
       return;
     }
-    console.log('Admin access verified');
-
     fetchData();
   }, [router, fetchData]);
 
-  const deleteUser = async (id) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+  const deleteUser = async (id, role) => {
+    if (role === 'admin') {
+      toast.error("Cannot remove admin accounts");
+      return;
+    }
+    if (!confirm("Are you sure you want to permanently remove this agent?")) return;
     try {
       const token = localStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      await fetch(`${apiUrl}/admin/delete-user/${id}`, {
-        method: "GET",
+      const res = await fetch(`${apiUrl}/admin/delete-user/${id}`, {
+        method: "DELETE",
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      toast.success("User removed from matrix");
-      fetchData();
+      if (res.ok) {
+        toast.success("Agent removed from matrix");
+        fetchData();
+      } else {
+        toast.error("Server rejected the deletion request");
+      }
     } catch (err) {
       toast.error("Deletion cycle failed");
     }
   };
 
-  const totalScans = qrList.reduce((acc, curr) => acc + (curr.scanCount || 0), 0);
+  const cancelOrder = async (id) => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    updateOrderStatus(id, "Cancelled");
+  };
+
+  const updateOrderStatus = async (id, newStatus, agentNum = '') => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const body = { status: newStatus };
+      if (agentNum) body.deliveryAgentNumber = agentNum;
+      
+      const res = await fetch(`${apiUrl}/order/update/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        toast.success(`Order status updated: ${newStatus}`);
+        fetchData();
+      } else {
+        toast.error("Status update rejected");
+      }
+    } catch (err) {
+      toast.error("Operation failed");
+    }
+  };
 
   const stats = [
-    { name: 'TOTAL NODES', value: qrList.length, icon: Zap, color: 'text-orange-400', sub: 'CLUSTERS ACTIVE' },
-    { name: 'ACTIVE USERS', value: users.length, icon: Users, color: 'text-blue-400', sub: 'AUTHORIZED AGENTS' },
-    { name: 'SYSTEM SCANS', value: totalScans, icon: Globe, color: 'text-emerald-400', sub: 'GLOBAL TELEMETRY' },
-    { name: 'SECURITY LEVEL', value: 'MAXIMUM', icon: ShieldCheck, color: 'text-indigo-400', sub: 'RBAC ENABLED' },
+    { name: 'TOTAL NODES', value: metrics.qrCount, icon: QrCode, color: 'text-orange-400', sub: 'CLUSTERS ACTIVE' },
+    { name: 'ACTIVE USERS', value: metrics.userCount, icon: Users, color: 'text-blue-400', sub: 'AUTHORIZED AGENTS' },
+    { name: 'PENDING ORDERS', value: metrics.orderCount, icon: ShoppingBag, color: 'text-emerald-400', sub: 'PHYSICAL DEPLOYMENTS' },
+    { name: 'SYSTEM SCANS', value: metrics.scanCount, icon: Globe, color: 'text-indigo-400', sub: 'GLOBAL TELEMETRY' },
   ];
 
   if (loading) return (
@@ -96,66 +148,85 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-indigo-500/30">
-      
+    <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-indigo-500/30 font-sans">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-[60] w-[260px] bg-[#14213D] border-r border-white/5 transform transition-transform duration-300 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static`}>
-        <div className="h-16 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3">
+      {/* Sidebar with Collapse feature */}
+      <aside className={`fixed inset-y-0 left-0 z-[60] bg-[#14213D] border-r border-white/5 transform transition-all duration-300 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static ${isSidebarCollapsed ? 'lg:w-[80px]' : 'lg:w-[260px]'}`}>
+        <div className={`h-16 flex items-center justify-between px-6 shrink-0 ${isSidebarCollapsed ? 'lg:px-0 lg:justify-center' : ''}`}>
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)]">
                 <Shield size={18} className="text-white" />
              </div>
              <span className="text-sm font-black italic tracking-[0.2em] text-white uppercase">Command Center</span>
           </div>
-          <button className="lg:hidden p-1 text-slate-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
-            <X size={20} />
+          <button 
+            className={`p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all ${isSidebarCollapsed ? 'rotate-180' : ''}`}
+            onClick={() => {
+                if (window.innerWidth >= 1024) {
+                    setIsSidebarCollapsed(!isSidebarCollapsed);
+                } else {
+                    setIsSidebarOpen(false);
+                }
+            }}
+          >
+            {isSidebarCollapsed ? <ArrowRight size={16} /> : <X size={16} />}
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pt-4 px-3 space-y-2">
-           <button onClick={() => setView("overview")} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group ${view === 'overview' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'}`}>
+        <div className="flex-1 overflow-y-auto pt-4 px-3 space-y-2 custom-scrollbar">
+           <button onClick={() => setView("overview")} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group ${view === 'overview' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
              <BarChart3 size={18} className={view === 'overview' ? 'text-indigo-400' : 'text-slate-500'} />
-             <span className={`text-[11px] font-black uppercase tracking-widest ${view === 'overview' ? 'text-indigo-300' : 'text-slate-500'}`}>Overview</span>
+             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'overview' ? 'text-indigo-300' : 'text-slate-500'}`}>Overview</span>}
            </button>
 
-           <button onClick={() => setView("users")} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group ${view === 'users' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'}`}>
+           <button onClick={() => setView("users")} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group ${view === 'users' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
              <Users size={18} className={view === 'users' ? 'text-indigo-400' : 'text-slate-500'} />
-             <span className={`text-[11px] font-black uppercase tracking-widest ${view === 'users' ? 'text-indigo-300' : 'text-slate-500'}`}>User Management</span>
+             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'users' ? 'text-indigo-300' : 'text-slate-500'}`}>User Registry</span>}
            </button>
 
-           <button onClick={() => setView("qrs")} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group ${view === 'qrs' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'}`}>
-             <QrCode size={18} className={view === 'qrs' ? 'text-indigo-400' : 'text-slate-500'} />
-             <span className={`text-[11px] font-black uppercase tracking-widest ${view === 'qrs' ? 'text-indigo-300' : 'text-slate-500'}`}>Matrix Nodes</span>
+           <button onClick={() => setView("qrs")} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group ${view === 'qrs' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
+             <QrCode size={18} className={view === 'qrs' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
+             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'qrs' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>Matrix Nodes</span>}
            </button>
 
-           <button onClick={() => setView("activity")} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group ${view === 'activity' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'}`}>
-             <Activity size={18} className={view === 'activity' ? 'text-indigo-400' : 'text-slate-500'} />
-             <span className={`text-[11px] font-black uppercase tracking-widest ${view === 'activity' ? 'text-indigo-300' : 'text-slate-500'}`}>Global Activity</span>
+           <button onClick={() => setView("telemetry")} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group ${view === 'telemetry' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
+             <Database size={18} className={view === 'telemetry' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
+             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'telemetry' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>User Telemetry</span>}
            </button>
 
-           <div className="pt-4 pb-2 px-4">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Standard Access</p>
+           <button onClick={() => setView("orders")} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group ${view === 'orders' ? 'bg-indigo-600/10 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
+             <ShoppingBag size={18} className={view === 'orders' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
+             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'orders' ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>Fulfillment Registry</span>}
+           </button>
+
+           <Link href="/profile" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
+             <User size={18} className="text-purple-500 group-hover:text-purple-400" />
+             {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap text-slate-500 group-hover:text-slate-300">Identity Profile</span>}
+           </Link>
+
+           <div className={`pt-8 pb-2 ${isSidebarCollapsed ? 'hidden' : 'px-4'}`}>
+              <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Authorized Access</p>
            </div>
-
-           <Link href="/dashboard" className="flex items-center gap-4 px-4 py-3.5 rounded-xl hover:bg-white/5 transition-all">
-             <Home size={18} className="text-slate-500" />
-             <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Back to Hub</span>
+           
+           <Link href="/dashboard" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all text-slate-500 hover:text-white ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-4'}`}>
+             <Home size={18} />
+             {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Back to Hub</span>}
            </Link>
         </div>
-
-        <div className="p-6 mt-auto border-t border-white/5 bg-[#0B132B]/50">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shadow-lg">A</div>
-              <div>
-                 <p className="text-[10px] font-black uppercase tracking-tighter">System Admin</p>
-                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Master Root</p>
-              </div>
-           </div>
+        
+        <div className={`p-6 shrink-0 pb-8 space-y-3 ${isSidebarCollapsed ? 'px-0 flex flex-col items-center' : ''}`}>
+           <button
+             onClick={handleLogout}
+             className={`flex items-center gap-3 py-2.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all border border-transparent hover:border-rose-500/20 group ${isSidebarCollapsed ? 'w-10 justify-center' : 'w-full px-3'}`}
+           >
+             <LogOut size={16} className="group-hover:text-rose-400" />
+             {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Logout</span>}
+           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto relative bg-[#0B132B]">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0B132B]/90 backdrop-blur-xl sticky top-0 z-40">
            <div className="flex items-center gap-4">
              <button className="lg:hidden p-2 hover:bg-white/5 rounded-lg" onClick={() => setIsSidebarOpen(true)}>
@@ -163,30 +234,41 @@ export default function AdminDashboard() {
              </button>
              <div className="flex items-center gap-2 text-slate-400">
                 <Terminal size={14} />
-                <span className="text-[10px] tracking-[0.3em] font-bold uppercase transition-all text-indigo-400/80 underline decoration-indigo-500/50 decoration-2 underline-offset-8">Command_Center / {view}</span>
+                <span className="text-[10px] tracking-[0.3em] font-bold uppercase text-indigo-400/80">Command_Center / {view}</span>
              </div>
            </div>
+
+           <button onClick={handleLogout} className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 flex items-center justify-center transition-all">
+             <LogOut size={16} />
+           </button>
         </header>
 
-        <main className="p-8 max-w-[1400px] mx-auto w-full space-y-10">
-           
+        <main className="p-8 max-w-[1400px] mx-auto w-full space-y-10 pb-20">
            {/* Section Header */}
-           <div>
-              <p className="text-[10px] font-bold text-indigo-400 tracking-[0.3em] mb-1">CENTRAL INTELLIGENCE</p>
-              <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-white via-indigo-200 to-indigo-400">Command Center</h1>
+           <div className="flex justify-between items-end">
+              <div>
+                 <p className="text-[10px] font-bold text-indigo-400 tracking-[0.3em] mb-1">CENTRAL NETWORK INTELLIGENCE</p>
+                 <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">
+                   {view === 'overview' ? 'System Overview' : view.toUpperCase() + ' REGISTRY'}
+                 </h1>
+              </div>
+              <div className="hidden md:block text-right">
+                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nexus System Core</p>
+                 <p className="text-xs font-bold text-emerald-400">ENCRYPTED // ACTIVE</p>
+              </div>
            </div>
 
            {/* Metrics Grid */}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {stats.map((stat, i) => (
-                <div key={i} className="bg-[#1F2B4B] border border-white/5 rounded-2xl p-6 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                     <stat.icon size={48} className={stat.color} />
+                <div key={i} className="bg-[#14213D] border border-white/5 rounded-2xl p-6 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
+                     <stat.icon size={64} className={stat.color} />
                   </div>
-                  <div className="flex flex-col gap-1 relative z-10">
-                     <p className="text-[10px] font-black text-slate-500 tracking-widest">{stat.name}</p>
-                     <p className="text-3xl font-black italic tracking-tighter">{stat.value}</p>
-                     <p className="text-[9px] font-bold text-slate-600 tracking-tighter uppercase whitespace-nowrap">{stat.sub}</p>
+                  <div className="relative z-10">
+                     <p className="text-[10px] font-black text-slate-500 tracking-widest uppercase mb-1">{stat.name}</p>
+                     <p className="text-3xl font-black italic tracking-tighter text-white">{stat.value}</p>
+                     <p className="text-[9px] font-bold text-slate-600 tracking-tighter uppercase mt-1">{stat.sub}</p>
                   </div>
                 </div>
               ))}
@@ -195,80 +277,76 @@ export default function AdminDashboard() {
            {/* Content Views */}
            {view === "overview" && (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                 {/* Recent Users */}
-                 <div className="bg-[#1F2B4B] border border-white/5 rounded-2xl p-6 shadow-xl">
-                    <h3 className="text-xl font-black italic uppercase tracking-tighter mb-6 flex items-center gap-2">
-                       <Users size={20} className="text-blue-400" /> Latest Agents
+                 <div className="bg-[#14213D] border border-white/5 rounded-[2rem] p-8">
+                    <h3 className="text-xl font-black italic uppercase tracking-tighter mb-8 flex items-center gap-3">
+                       <Users size={20} className="text-blue-400" /> Authorized Agents
                     </h3>
                     <div className="space-y-4">
-                       {users.slice(-5).map((user, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/5">
-                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold">{user.name?.[0]}</div>
+                       {users.slice(-5).reverse().map((user, i) => (
+                          <div key={i} className="flex items-center justify-between p-4 bg-white/[0.02] rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
+                             <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-sm font-black">{user.name?.[0].toUpperCase()}</div>
                                 <div>
-                                   <p className="text-xs font-bold">{user.name}</p>
-                                   <p className="text-[10px] text-slate-500">{user.email}</p>
+                                   <p className="text-sm font-bold text-white">{user.name}</p>
+                                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">{user.email}</p>
                                 </div>
                              </div>
-                             <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest">{user.role}</span>
+                             <span className={`text-[9px] font-black px-3 py-1 rounded-full border uppercase tracking-widest ${user.role === 'admin' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>{user.role}</span>
                           </div>
                        ))}
                     </div>
                  </div>
 
-                 {/* System Heatmap Data View */}
-                 <div className="bg-[#1F2B4B] border border-white/5 rounded-2xl p-6 shadow-xl">
-                    <h3 className="text-xl font-black italic uppercase tracking-tighter mb-6 flex items-center gap-2">
-                       <Activity size={20} className="text-emerald-400" /> System Integrity
-                    </h3>
-                    <div className="p-8 border-2 border-dashed border-white/5 rounded-xl flex flex-col items-center justify-center text-center">
-                        <ShieldCheck size={40} className="text-slate-600 mb-4" />
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">All systems operational within normal parameters</p>
-                        <p className="text-[10px] text-slate-700 mt-2">LAST SYSTEM AUDIT: JUST NOW</p>
+                 <div className="bg-[#14213D] border border-white/5 rounded-[2rem] p-8 flex flex-col justify-center items-center text-center">
+                    <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center text-emerald-400 mb-6 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+                       <ShieldCheck size={40} />
                     </div>
+                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">Matrix Secure</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest max-w-[250px] leading-relaxed">System backbone integrity verified. No breaches detected in current cycle.</p>
                  </div>
               </div>
            )}
 
            {view === "users" && (
-              <div className="bg-[#1F2B4B] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-                 <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                    <h2 className="text-xl font-black italic uppercase">Agent Registry</h2>
-                    <div className="relative hidden md:block">
-                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                       <input type="text" placeholder="Search Agents..." className="bg-black/20 border border-white/10 rounded-full pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:border-indigo-500/50" />
-                    </div>
+              <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                 <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                    <h2 className="text-2xl font-black italic uppercase tracking-tighter">Authorized Agent Database</h2>
                  </div>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                       <thead className="bg-[#14213D] text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                          <tr>
-                             <th className="px-6 py-4">Agent Name</th>
-                             <th className="px-6 py-4">Email Address</th>
-                             <th className="px-6 py-4">Security Level</th>
-                             <th className="px-6 py-4 text-right">Actions</th>
+                       <thead>
+                          <tr className="bg-black/20 text-[10px] font-black uppercase text-slate-500 tracking-widest border-y border-white/5">
+                             <th className="px-8 py-5">Profile</th>
+                             <th className="px-8 py-5">Security Level</th>
+                             <th className="px-8 py-5 text-right">Operation</th>
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-white/5">
                           {users.map((user) => (
-                             <tr key={user._id} className="hover:bg-white/5 transition-colors">
-                                <td className="px-6 py-4">
-                                   <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xs">{user.name?.[0]}</div>
-                                      <span className="text-xs font-bold">{user.name}</span>
+                             <tr key={user._id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-8 py-6">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 font-black text-sm border border-white/10">{user.name?.[0].toUpperCase()}</div>
+                                      <div>
+                                         <p className="text-sm font-black text-white">{user.name}</p>
+                                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{user.email}</p>
+                                      </div>
                                    </div>
                                 </td>
-                                <td className="px-6 py-4 text-xs text-slate-400">{user.email}</td>
-                                <td className="px-6 py-4">
-                                   <span className={`text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${user.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                                <td className="px-8 py-6">
+                                   <span className={`text-[9px] font-black px-3 py-1 rounded-md border uppercase tracking-widest ${user.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 shadow-[0_0_10px_rgba(79,70,229,0.1)]' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
                                       {user.role}
                                    </span>
                                 </td>
-                                <td className="px-6 py-4 text-right space-x-3">
-                                   <button onClick={() => deleteUser(user._id)} className="p-2 text-slate-500 hover:text-rose-400 transition-colors">
-                                      <Trash2 size={16} />
-                                   </button>
-                                </td>
+                                <td className="px-8 py-6 text-right">
+                                    {user.role !== 'admin' ? (
+                                      <button onClick={() => deleteUser(user._id, user.role)} className="bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-500 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                        Decommission
+                                      </button>
+                                    ) : (
+                                      <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest italic border border-white/5 px-4 py-2 rounded-xl">Protected</span>
+                                    )}
+                                 </td>
                              </tr>
                           ))}
                        </tbody>
@@ -277,119 +355,264 @@ export default function AdminDashboard() {
               </div>
            )}
 
-           {view === "qrs" && (
-              <div className="bg-[#1F2B4B] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-                  <div className="p-6 border-b border-white/5">
-                    <h2 className="text-xl font-black italic uppercase">Matrix Node Registry</h2>
-                 </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 p-6 gap-6">
-                    {qrList.map((qr) => (
-                       <div key={qr._id} className="bg-black/20 border border-white/5 rounded-xl p-4 space-y-3 relative overflow-hidden group">
-                          <div className="flex justify-between items-start">
-                             <div className="bg-indigo-500/10 p-2 rounded-lg">
-                                <QrCode size={20} className="text-indigo-400" />
-                             </div>
-                             <div className="text-right">
-                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">{qr.scanCount || 0} Scans</p>
-                                <p className="text-[8px] text-slate-600 font-bold uppercase">{qr._id.slice(-8).toUpperCase()}</p>
-                             </div>
-                          </div>
-                          <div>
-                             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Destination Target</p>
-                             <p className="text-xs font-bold text-white truncate max-w-[200px]">{qr.link}</p>
-                          </div>
-                          <div className="pt-2 flex gap-2">
-                             <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 w-[60%]" style={{ width: `${Math.min((qr.scanCount || 0) * 5, 100)}%` }}></div>
-                             </div>
-                          </div>
-                       </div>
-                    ))}
-                 </div>
-              </div>
-           )}
-
-           {view === "activity" && (
-               <div className="bg-[#1F2B4B] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-                  <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#14213D]">
-                    <div>
-                       <h2 className="text-xl font-black italic uppercase italic">Global Telemetry Stream</h2>
-                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Real-time activity across all active nodes</p>
-                    </div>
-                    <div className="bg-indigo-600/10 px-4 py-2 rounded-lg border border-indigo-500/20">
-                       <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Live Feed Active</span>
-                    </div>
+            {view === "qrs" && (
+               <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                  <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                     <h2 className="text-2xl font-black italic uppercase tracking-tighter">Matrix Node Registry</h2>
                   </div>
                   <div className="overflow-x-auto">
                      <table className="w-full text-left">
-                        <thead className="bg-[#0B132B] text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                           <tr>
-                              <th className="px-6 py-4">Node ID</th>
-                              <th className="px-6 py-4">Timestamp</th>
-                              <th className="px-6 py-4">Location Entry</th>
-                              <th className="px-6 py-4">Destination</th>
+                        <thead>
+                           <tr className="bg-black/20 text-[10px] font-black uppercase text-slate-500 tracking-widest border-y border-white/5">
+                              <th className="px-8 py-5">Node Identity</th>
+                              <th className="px-8 py-5 text-center">Engagement (Scans)</th>
+                              <th className="px-8 py-5 text-center">Signal Status</th>
+                              <th className="px-8 py-5 text-right">Registry Operations</th>
                            </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5 font-mono">
-                           {(() => {
-                              const allScans = [];
-                              qrList.forEach(qr => {
-                                 if (qr.scans) {
-                                    qr.scans.forEach(scan => {
-                                       allScans.push({
-                                          ...scan,
-                                          nodeId: qr._id,
-                                          target: qr.link
-                                       });
-                                    });
-                                 }
-                              });
-                              const sortedScans = allScans.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-                              
-                              if (sortedScans.length === 0) {
-                                 return (
-                                    <tr>
-                                       <td colSpan="4" className="px-6 py-20 text-center">
-                                          <Activity size={40} className="mx-auto text-slate-700 mb-4 animate-pulse" />
-                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest italic">Awaiting telemetry data...</p>
-                                       </td>
-                                    </tr>
-                                 );
-                              }
-
-                              return sortedScans.map((scan, i) => (
-                                 <tr key={i} className="hover:bg-white/5 transition-colors group">
-                                    <td className="px-6 py-4">
-                                       <span className="text-[10px] font-black text-slate-400 group-hover:text-indigo-400 transition-colors uppercase">
-                                          {scan.nodeId.slice(-8).toUpperCase()}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       <div className="flex flex-col">
-                                          <span className="text-xs font-bold text-slate-200">{new Date(scan.timestamp).toLocaleDateString()}</span>
-                                          <span className="text-[9px] text-slate-500">{new Date(scan.timestamp).toLocaleTimeString()}</span>
+                        <tbody className="divide-y divide-white/5">
+                           {qrList.map((qr) => (
+                              <tr key={qr._id} className="hover:bg-white/[0.02] transition-colors group">
+                                 <td className="px-8 py-6">
+                                    <div className="flex items-center gap-4">
+                                       <div className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                          <QrCode size={18} />
                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-md text-[10px] tracking-widest uppercase border border-emerald-500/10">
-                                          <Globe size={10} /> {scan.location || 'Unknown'}
-                                       </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       <p className="text-[10px] font-bold text-blue-400 truncate max-w-[200px]" title={scan.target}>{scan.target}</p>
-                                    </td>
-                                 </tr>
-                              ));
-                           })()}
+                                       <div>
+                                          <p className="text-sm font-black text-white italic uppercase">{qr.customConfig?.title?.text || qr.customConfig?.title || 'Dynamic Node'}</p>
+                                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">{qr.link}</p>
+                                       </div>
+                                    </div>
+                                 </td>
+                                 <td className="px-8 py-6 text-center">
+                                    <div className="inline-flex flex-col">
+                                       <span className="text-lg font-black italic text-white leading-none">{qr.scanCount || 0}</span>
+                                       <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Bursts</span>
+                                    </div>
+                                 </td>
+                                 <td className="px-8 py-6 text-center">
+                                    <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest">Active Signal</span>
+                                 </td>
+                                 <td className="px-8 py-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                       <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:border-white/10 transition-all">
+                                          <Search size={14} />
+                                       </button>
+                                       <button className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
+                                          <Trash2 size={14} />
+                                       </button>
+                                    </div>
+                                 </td>
+                              </tr>
+                           ))}
                         </tbody>
                      </table>
+                     {qrList.length === 0 && (
+                        <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
+                            <QrCode size={40} className="text-slate-800" />
+                            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">No nodes registered in the matrix</p>
+                        </div>
+                     )}
                   </div>
                </div>
             )}
 
+            {view === "orders" && (
+              <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                 <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                    <h2 className="text-2xl font-black italic uppercase tracking-tighter">Order Fulfillment Registry</h2>
+                 </div>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                       <thead>
+                          <tr className="bg-black/20 text-[10px] font-black uppercase text-slate-500 tracking-widest border-y border-white/5">
+                             <th className="px-8 py-5">Product / Standee</th>
+                             <th className="px-8 py-5">Shipping Intel (Address)</th>
+                             <th className="px-8 py-5">Internal Metrics</th>
+                             <th className="px-8 py-5">Payment / Status</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-white/5">
+                          {orders.map((order) => (
+                             <tr key={order._id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-8 py-6">
+                                   <div className="space-y-1">
+                                      <p className="text-xs font-black text-white uppercase tracking-tight">{order.format?.name || 'Standard Standee'}</p>
+                                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{order.title || 'Untitled Project'}</p>
+                                      <div className="flex gap-1 pt-1">
+                                         <span className="text-[8px] font-black bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-sm uppercase tracking-tighter border border-blue-500/10">{order.quantity} Units</span>
+                                      </div>
+                                   </div>
+                                </td>
+                                <td className="px-8 py-6">
+                                   <div className="space-y-1.5 p-3 bg-white/[0.03] border border-white/5 rounded-2xl">
+                                      <div className="flex items-center gap-2 mb-1">
+                                         <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                            <MapPin size={12} />
+                                         </div>
+                                         <span className="text-[10px] font-black text-white uppercase">{order.address?.fullName || 'No Name'}</span>
+                                      </div>
+                                      <p className="text-[10px] font-bold text-slate-400 capitalize">{order.address?.street}</p>
+                                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{order.address?.city}, {order.address?.state} - {order.address?.zipCode}</p>
+                                      <p className="text-[9px] font-black text-indigo-400 pt-1 flex items-center gap-1"><Terminal size={8}/> {order.address?.phone || 'No Contact'}</p>
+                                   </div>
+                                </td>
+                                <td className="px-8 py-6">
+                                   <div className="flex flex-col gap-2">
+                                      <div className="flex items-center gap-2">
+                                         <Clock size={12} className="text-slate-600" />
+                                         <span className="text-[10px] font-bold text-slate-400">{new Date(order.createdAt).toLocaleDateString()}</span>
+                                      </div>
+                                      <select 
+                                         value={order.status}
+                                         onChange={(e) => updateOrderStatus(order._id, e.target.value)}
+                                         className={`text-[10px] font-black px-3 py-1.5 rounded-lg border uppercase tracking-widest w-fit bg-[#0B132B] outline-none cursor-pointer transition-all ${
+                                             order.status === 'Delivered' ? 'text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 
+                                             order.status === 'Shipped' ? 'text-blue-400 border-blue-500/20' : 
+                                             order.status === 'Out for Delivery' ? 'text-orange-400 border-orange-500/20' :
+                                             order.status === 'Cancelled' ? 'text-rose-400 border-rose-500/20' :
+                                             'text-amber-400 border-amber-500/20'
+                                         }`}
+                                      >
+                                         <option value="Pending">Pending</option>
+                                         <option value="Processing">Processing</option>
+                                         <option value="Shipped">Shipped</option>
+                                         <option value="Out for Delivery">Out for Delivery</option>
+                                         <option value="Delivered">Delivered</option>
+                                         <option value="Cancelled">Cancelled</option>
+                                      </select>
+                                      <div className="mt-2 space-y-1">
+                                         <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Agent Signal</p>
+                                         <input 
+                                             type="text"
+                                             placeholder="Enter Agent No."
+                                             defaultValue={order.deliveryAgentNumber}
+                                             onBlur={(e) => updateOrderStatus(order._id, order.status, e.target.value)}
+                                             className="w-full bg-black/20 border border-white/10 rounded-lg px-2 py-1 text-[9px] font-bold text-white focus:border-indigo-500 outline-none transition-all placeholder:text-slate-700"
+                                         />
+                                      </div>
+                                   </div>
+                                </td>
+                                <td className="px-8 py-6">
+                                   <div className="space-y-2">
+                                      <div className="flex flex-col">
+                                         <p className="text-xl font-black italic tracking-tighter text-white">${order.totalPrice?.toFixed(2)}</p>
+                                         <div className="flex items-center gap-2 mt-1">
+                                            <CreditCard size={12} className="text-slate-500" />
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{order.paymentMethod || 'Credit Card'}</span>
+                                         </div>
+                                      </div>
+                                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border font-black uppercase tracking-widest text-[9px] w-fit ${order.paymentStatus === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                                         {order.paymentStatus === 'Completed' ? <CheckCircle2 size={12}/> : <Activity size={12}/>}
+                                         {order.paymentStatus === 'Completed' ? 'Payment Verified' : 'Incomplete'}
+                                      </div>
+                                      {order.status !== 'Cancelled' && (
+                                         <button 
+                                            onClick={() => cancelOrder(order._id)}
+                                            className="text-[9px] font-black text-rose-500 hover:text-rose-400 uppercase tracking-widest flex items-center gap-1 transition-colors mt-2"
+                                         >
+                                            <XCircle size={10} /> Cancel Order
+                                         </button>
+                                      )}
+                                   </div>
+                                </td>
+                             </tr>
+                          ))}
+                       </tbody>
+                    </table>
+                 </div>
+              </div>
+           )}
+           {view === "telemetry" && (
+              <div className="space-y-8 animate-in mt-10 fade-in slide-in-from-bottom-5 duration-700">
+                  <div className="flex items-center justify-between mb-4">
+                      <div>
+                          <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em] mb-1">Network Activity</p>
+                          <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">User Telemetry Feed</h2>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Feed Active</span>
+                      </div>
+                  </div>
+
+                  <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                      <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                              <thead>
+                                  <tr className="border-b border-white/5 bg-white/5">
+                                      <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">User Identity</th>
+                                      <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Contact Info</th>
+                                      <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Source Node</th>
+                                      <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Location</th>
+                                      <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Time</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                  {telemetry.map((log, i) => (
+                                      <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                                          <td className="px-8 py-6">
+                                              <div className="flex items-center gap-4">
+                                                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+                                                      <Smartphone size={18} />
+                                                  </div>
+                                                  <div>
+                                                      <h4 className="text-sm font-black text-white">{log.name || "Anonymous"}</h4>
+                                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                          <span>{log.os || "Unknown"}</span>
+                                                          <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
+                                                          <span>{log.ip || "0.0.0.0"}</span>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                                                   <Users size={16} />
+                                                </div>
+                                                <div>
+                                                   <p className="text-[11px] font-bold text-slate-300">{log.email || "Not provided"}</p>
+                                                   <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">{log.phoneNumber || "Verified Lead"}</p>
+                                                </div>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6">
+                                             <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                   <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                                                   <span className="text-[10px] font-black text-white italic uppercase tracking-widest">{log.nodeTitle || "Dynamic Node"}</span>
+                                                </div>
+                                                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">NODE #{log.qrId?.slice(-6).toUpperCase()}</p>
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6 text-center">
+                                             <div className="inline-block px-3 py-1.5 rounded-lg border border-teal-500/20 bg-teal-500/10 text-[9px] font-black text-teal-400 uppercase tracking-widest leading-tight">
+                                                {log.location || "Location Unknown"}
+                                             </div>
+                                          </td>
+                                          <td className="px-8 py-6 text-right">
+                                             <div className="flex items-center justify-end gap-2 text-slate-400">
+                                                <p className="text-xs font-black text-white italic">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}</p>
+                                                <Clock size={12} className="opacity-40" />
+                                             </div>
+                                          </td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                          </table>
+                          {telemetry.length === 0 && (
+                            <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
+                                <Activity size={40} className="text-slate-800" />
+                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Waiting for incoming signal bursts...</p>
+                            </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+           )}
         </main>
       </div>
-
     </div>
   );
 }

@@ -35,6 +35,7 @@ type: {
       device: { type: String, default: "Unknown" },
       name: { type: String, default: "Anonymous" },
       email: { type: String, default: "Not provided" },
+      phoneNumber: { type: String, default: "Not provided" },
       isFraud: { type: Boolean, default: false },
       fraudReason: { type: String, default: "" },
       riskScore: { type: Number, default: 0 }

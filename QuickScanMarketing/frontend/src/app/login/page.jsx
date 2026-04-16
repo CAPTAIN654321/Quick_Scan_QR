@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import * as Yup from 'yup';
 import Link from 'next/link';
 import { ArrowRight, QrCode, Shield, User, Terminal, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const loginSchema = Yup.object().shape({
   email: Yup.string().required('Email is required').email('Invalid email address'),
@@ -14,18 +14,22 @@ const loginSchema = Yup.object().shape({
 });
 
 const LoginPage = () => {
-  const [isAdminMode, setIsAdminMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
     const params = new URLSearchParams(window.location.search);
-    return params.get('mode') === 'admin';
-  });
+    setIsAdminMode(params.get('mode') === 'admin');
+  }, []);
   const loginForm = useFormik({
     initialValues: { email: '', password: '' },
     validationSchema: loginSchema,
     onSubmit: async (values, { setSubmitting }) => {
       try {
         console.log('Attempting hardcoded Nexus connection...');
-        const response = await axios.post('http://localhost:5000/user/authenticate', values);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+        const response = await axios.post(`${apiUrl}/user/authenticate`, values);
         
         toast.success('Welcome Back!');
         localStorage.clear();
@@ -87,7 +91,7 @@ const LoginPage = () => {
         <img 
           src={isAdminMode 
             ? "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop" 
-            : "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2026&auto=format&fit=crop"} 
+            : "/login-hero.png"} 
           alt="Hero background" 
           className="h-full w-full object-cover"
         />
@@ -170,11 +174,14 @@ const LoginPage = () => {
             </div>
 
             <div className="space-y-2">
-              <label 
-                className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isAdminMode ? 'text-slate-400' : 'text-slate-500'}`}
-              >
-                Root Password
-              </label>
+              <div className="flex items-center justify-between px-1">
+                <label className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isAdminMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Root Password
+                </label>
+                <Link href="/forgot-password" size="sm" className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest hover:underline transition-all">
+                    Forgot Access?
+                </Link>
+              </div>
               <div className="relative group">
                 <input 
                     id="password"

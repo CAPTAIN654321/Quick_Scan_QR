@@ -22,13 +22,28 @@ import {
   Home,
   Trash2,
   Smartphone,
-  Monitor
+  Monitor,
+  LogOut,
+  ShoppingBag,
+  BellOff,
+  Volume2,
+  CheckCircle2,
+  ArrowRight,
+  ChevronLeft
 } from "lucide-react";
 
 export default function Dashboard() {
   const [qrList, setQrList] = useState([]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
   const [editId, setEditId] = useState(null);
   const [newLink, setNewLink] = useState("");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
@@ -40,8 +55,10 @@ export default function Dashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const lastScanCounts = useRef({});
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
 
   const handleQuickGenerate = async () => {
     if (!quickLink.trim()) return;
@@ -77,8 +94,20 @@ export default function Dashboard() {
           data.forEach(node => {
             const prevCount = lastScanCounts.current[node._id] || 0;
             if (node.scanCount > prevCount) {
-               const newScans = node.scanCount - prevCount;
-               addNotification(`New Intel Received: ${newScans} signal${newScans > 1 ? 's' : ''} detected at Node #${node._id.slice(-6).toUpperCase()}`);
+                const newScansCount = node.scanCount - prevCount;
+                // Get the latest scan details
+                const latestScan = node.scans && node.scans.length > 0 ? node.scans[node.scans.length - 1] : null;
+                const leadName = latestScan ? latestScan.name : "Anonymous";
+                const location = latestScan ? latestScan.location : "Unknown";
+                
+                addNotification(`Inbound Signal: ${leadName} detected at Node #${node._id.slice(-6).toUpperCase()} (${location})`);
+                
+                // Play sonar ping sound
+                try {
+                  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3');
+                  audio.volume = 0.4;
+                  audio.play().catch(e => console.log('Audio blocked by browser policy'));
+                } catch(e) {}
             }
             lastScanCounts.current[node._id] = node.scanCount;
           });
@@ -102,15 +131,37 @@ export default function Dashboard() {
   const addNotification = (message) => {
     if (isMuted) return;
     const id = Date.now();
-    setNotifications(prev => [{ id, message, read: false }, ...prev].slice(0, 5));
+    const newNotif = { 
+      id, 
+      message, 
+      read: false, 
+      timestamp: new Date(),
+      showToast: true 
+    };
+    
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50)); // Keep last 50
+    
+    // Hide toast after 8 seconds but keep in list
     setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 8000); // 8 seconds for better readability
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, showToast: false } : n));
+    }, 8000);
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const deleteNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
   };
 
   useEffect(() => {
     fetchQR();
-    const interval = setInterval(fetchQR, 5000); // Polling for real-time alerts
+    const interval = setInterval(fetchQR, 15000); // Optimized for low internet: reduced polling to 15s
     
     // Check if user is admin
     const userData = localStorage.getItem('user');
@@ -118,6 +169,9 @@ export default function Dashboard() {
       const user = JSON.parse(userData);
       if (user.role === 'admin') {
         setIsAdmin(true);
+      }
+      if (user.name) {
+        setUserName(user.name);
       }
     }
 
@@ -216,43 +270,60 @@ export default function Dashboard() {
       )}
 
       {/* Sidebar matching the image */}
-      <aside className={`fixed inset-y-0 left-0 z-60 w-[260px] bg-[#14213D] border-r border-white/5 transform transition-transform duration-300 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static`}>
-        <div className="h-16 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3">
+      {/* Sidebar matching the image with Collapse feature */}
+      <aside className={`fixed inset-y-0 left-0 z-60 bg-[#14213D] border-r border-white/5 transform transition-all duration-300 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static ${isSidebarCollapsed ? 'lg:w-[80px]' : 'lg:w-[260px]'}`}>
+        <div className={`h-16 flex items-center justify-between px-6 shrink-0 ${isSidebarCollapsed ? 'lg:px-0 lg:justify-center' : ''}`}>
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
             <span className="text-xl font-black italic tracking-widest text-white">V</span>
             <span className="text-sm font-black italic tracking-[0.2em] text-white">VISION QR PRO</span>
           </div>
-          <button className="lg:hidden p-1 text-slate-500 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
-            <X size={20} />
+          <button 
+            className={`p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all ${isSidebarCollapsed ? 'rotate-180' : ''}`} 
+            onClick={() => {
+                if (window.innerWidth >= 1024) {
+                    setIsSidebarCollapsed(!isSidebarCollapsed);
+                } else {
+                    setIsSidebarOpen(false);
+                }
+            }}
+          >
+            {isSidebarCollapsed ? <ArrowRight size={16} /> : <X size={16} />}
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pt-4 px-3 space-y-2">
+        <div className="flex-1 overflow-y-auto pt-4 px-3 space-y-2 custom-scrollbar no-scrollbar">
           {/* Active Dashboard Item */}
-          <a href="#" className="flex items-center gap-4 px-3 py-3.5 bg-[#1C2541] rounded-xl border border-white/5 shadow-lg group relative overflow-hidden">
+          <a href="#" className={`flex items-center gap-4 py-3.5 bg-[#1C2541] rounded-xl border border-white/5 shadow-lg group relative overflow-hidden transition-all ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="absolute inset-y-0 left-0 w-1 bg-linear-to-b from-blue-400 to-indigo-600 rounded-r-md"></div>
             <div className="p-1 shrink-0">
                <Home size={22} className="text-orange-300 drop-shadow-[0_0_8px_rgba(253,186,116,0.8)] fill-orange-300/30" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-white">Dashboard</span>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-white whitespace-nowrap">Dashboard</span>}
           </a>
 
           {/* Inactive Items */}
-          <Link href="/generate" className="flex items-center gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-colors group">
+          <Link href="/generate" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-orange-500/20 transition-colors border border-white/5 shadow-sm">
                <Zap size={18} className="text-orange-500 fill-orange-500/20" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Create QR</span>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors whitespace-nowrap">Create QR</span>}
           </Link>
 
-          <Link href="/standee" className="flex items-center gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-colors group">
+          <Link href="/standee" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-cyan-500/20 transition-colors border border-white/5 shadow-sm">
                <Layers size={18} className="text-cyan-400 fill-cyan-400/20" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Create Standee</span>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors whitespace-nowrap">Create Standee</span>}
           </Link>
 
-          <a href="#" className="flex items-center gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-colors group">
+          <Link href="/my-orders" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
+            <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-indigo-500/20 transition-colors border border-white/5 shadow-sm">
+               <ShoppingBag size={18} className="text-indigo-400 fill-indigo-400/10" />
+            </div>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors whitespace-nowrap">My Orders</span>}
+          </Link>
+
+          <a href="#" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-pink-500/20 transition-colors border border-white/5 shadow-sm flex items-end justify-center">
                <div className="flex items-end gap-0.5 h-4 w-4">
                   <div className="w-1 h-3 bg-emerald-400 rounded-[1px]"></div>
@@ -260,33 +331,42 @@ export default function Dashboard() {
                   <div className="w-1 h-2 bg-blue-400 rounded-[1px]"></div>
                </div>
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Data Feed</span>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors whitespace-nowrap">Data Feed</span>}
           </a>
 
-          <a href="#" className="flex items-center gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-colors group">
+          <Link href="/profile" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-purple-500/20 transition-colors border border-white/5 shadow-sm">
                <User size={18} className="text-purple-600 fill-purple-600/20" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Profile</span>
-          </a>
+            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors whitespace-nowrap">Profile</span>}
+          </Link>
 
           {isAdmin && (
-            <Link href="/admin-dashboard" className="flex items-center gap-4 px-3 py-3.5 rounded-xl bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-600/20 transition-all group mt-6 shadow-[0_0_15px_rgba(79,70,229,0.1)]">
+            <Link href="/admin-dashboard" className={`flex items-center gap-4 py-3.5 rounded-xl bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-600/20 transition-all group mt-6 shadow-[0_0_15px_rgba(79,70,229,0.1)] ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
               <div className="bg-indigo-600 p-1.5 rounded-lg shrink-0 shadow-[0_0_10px_rgba(79,70,229,0.4)] ring-1 ring-indigo-400/50">
                  <Shield size={18} className="text-white" />
               </div>
-              <div className="flex flex-col">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Command Center</span>
-                 <span className="text-[8px] font-bold text-indigo-500/80 uppercase tracking-tighter">Root Access Enabled</span>
-              </div>
+              {!isSidebarCollapsed && (
+                <div className="flex flex-col">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 whitespace-nowrap">Command Center</span>
+                   <span className="text-[8px] font-bold text-indigo-500/80 uppercase tracking-tighter whitespace-nowrap">Root Access Enabled</span>
+                </div>
+              )}
             </Link>
           )}
         </div>
 
-        <div className="p-6 shrink-0 pb-8">
+        <div className={`p-6 shrink-0 pb-8 space-y-3 ${isSidebarCollapsed ? 'px-0 flex flex-col items-center' : ''}`}>
            <div className="w-12 h-12 rounded-full bg-black/50 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors shadow-inner">
              <span className="text-white font-bold text-xl drop-shadow-md">N</span>
            </div>
+           <button
+             onClick={handleLogout}
+             className={`flex items-center gap-3 py-2.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all border border-transparent hover:border-rose-500/20 group ${isSidebarCollapsed ? 'w-10 justify-center' : 'w-full px-3'}`}
+           >
+             <LogOut size={16} className="group-hover:text-rose-400" />
+             {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Logout</span>}
+           </button>
         </div>
       </aside>
 
@@ -303,28 +383,42 @@ export default function Dashboard() {
           
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setIsMuted(!isMuted)}
-              className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${isMuted ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-white/5 border-white/10 text-slate-400 hover:text-blue-400'}`}
-              title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
+              onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+              className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${isNotificationPanelOpen ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : (isMuted ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-white/5 border-white/10 text-slate-400 hover:text-blue-400')}`}
+              title="Notifications"
             >
-              <Bell size={20} className={!isMuted && notifications.length > 0 ? 'animate-bounce' : ''} />
-              {!isMuted && notifications.length > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#0B132B]"></span>
+              <Bell size={20} className={!isMuted && notifications.some(n => !n.read) ? 'animate-bounce' : ''} />
+              {notifications.some(n => !n.read) && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-600 rounded-full border-2 border-[#0B132B] text-[8px] font-black flex items-center justify-center px-1">
+                  {notifications.filter(n => !n.read).length}
+                </span>
               )}
               {isMuted && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-6 h-0.5 bg-rose-500 rotate-45 rounded-full"></div>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-6 h-0.5 bg-rose-500 rotate-45 rounded-full opacity-60"></div>
                 </div>
               )}
             </button>
-            <div className="hidden md:flex items-center gap-1 text-[10px] font-bold text-slate-500 tracking-tighter mr-4">
-              <span className="text-white/20">NEURAL</span>
-              <span className="text-white/40">GLOBAL</span>
-              <span className="text-white/60">SEED</span>
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg border border-white/5 mr-4 overflow-hidden relative group">
+              <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] relative z-10">Standard</span>
+              <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded uppercase tracking-[0.2em] border border-blue-500/20 relative z-10">Access</span>
             </div>
-            <div className="w-8 h-8 rounded bg-linear-to-br from-purple-600 to-indigo-600 border border-white/10 flex items-center justify-center text-[10px] font-bold shadow-lg">
-              VA
+            <div className="w-8 h-8 rounded bg-gradient-to-br from-purple-600 to-indigo-600 border border-white/10 flex items-center justify-center shadow-lg shrink-0">
+              <User size={16} className="text-white" />
             </div>
+            {userName && (
+              <span className="hidden sm:block text-xs font-black text-white/80 tracking-wide max-w-[120px] truncate">
+                {userName}
+              </span>
+            )}
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-rose-500/10 hover:border-rose-500/30 flex items-center justify-center transition-all text-slate-400 hover:text-rose-400"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </header>
 
@@ -797,10 +891,7 @@ export default function Dashboard() {
                           const dt = new Date(scan.timestamp);
                           return (
                             <tr key={idx} className="bg-[#1C2541] hover:bg-[#232e4d] transition-colors group">
-                              <td className="px-4 py-3 rounded-l-lg border-y border-l border-white/5 group-hover:border-white/10 text-xs font-bold text-slate-300">
-                                {dt.toLocaleDateString()}
-                              </td>
-                              <td className="px-4 py-3 border-y border-white/5 group-hover:bg-white/[0.02] transition-colors">
+                              <td className="px-4 py-3 rounded-l-lg border-y border-l border-white/5 group-hover:border-white/10 transition-colors">
                                 <div className="flex flex-col">
                                    <span className="text-[10px] font-black text-slate-200">{dt.toLocaleDateString()}</span>
                                    <span className="text-[9px] font-bold text-slate-500">{dt.toLocaleTimeString()}</span>
@@ -809,7 +900,15 @@ export default function Dashboard() {
                               <td className="px-4 py-3 border-y border-white/5 group-hover:bg-white/[0.02]">
                                 <div className="flex flex-col gap-0.5">
                                   <span className="text-[10px] font-black text-blue-400 uppercase tracking-tight">{scan.name || 'Anonymous'}</span>
-                                  <span className="text-[9px] font-bold text-slate-500 italic truncate max-w-[140px]">{scan.email || 'Not Provided'}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-500 italic truncate max-w-[140px]">{scan.email || 'No Email'}</span>
+                                    {scan.phoneNumber && scan.phoneNumber !== 'Not provided' && (
+                                      <span className="text-[9px] font-bold text-emerald-400 tracking-tighter mt-0.5 flex items-center gap-1">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        {scan.phoneNumber}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-4 py-3 border-y border-white/5 group-hover:bg-white/[0.02]">
@@ -905,7 +1004,7 @@ export default function Dashboard() {
       </div>
       {/* Notification Toast Stack */}
       <div className="fixed top-6 right-6 z-[300] flex flex-col gap-3 pointer-events-none">
-        {notifications.map((notif) => (
+        {notifications.filter(n => n.showToast).map((notif) => (
           <div 
             key={notif.id} 
             className="pointer-events-auto bg-[#14213D]/95 border border-blue-500/50 backdrop-blur-md rounded-xl p-4 shadow-[0_0_30px_rgba(59,130,246,0.3)] animate-in slide-in-from-right duration-300 flex items-center gap-4 min-w-[320px] max-w-[400px]"
@@ -915,21 +1014,14 @@ export default function Dashboard() {
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-start mb-1">
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest italic font-black">Network Alert</p>
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest italic font-black">Inbound Signal</p>
                 <div className="flex gap-2">
                    <button 
-                     onClick={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
+                     onClick={() => setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true, showToast: false } : n))}
                      className="text-slate-500 hover:text-emerald-400 transition-colors"
-                     title="Mark as Read"
+                     title="Dismiss"
                    >
                      <Check size={14} />
-                   </button>
-                   <button 
-                     onClick={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
-                     className="text-slate-500 hover:text-rose-400 transition-colors"
-                     title="Delete"
-                   >
-                     <X size={14} />
                    </button>
                 </div>
               </div>
@@ -938,6 +1030,92 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Global Notification Panel */}
+      {isNotificationPanelOpen && (
+        <>
+          <div className="fixed inset-0 z-[190] bg-black/40 backdrop-blur-[2px]" onClick={() => setIsNotificationPanelOpen(false)}></div>
+          <div className="fixed top-20 right-6 z-[200] w-full max-w-sm bg-[#14213D] border border-white/10 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] animate-in slide-in-from-top-4 duration-300 overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-xl text-blue-400 shadow-inner">
+                    <Bell size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black italic uppercase tracking-tighter text-white">Neural Alerts</h3>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Inbound Signal History</p>
+                  </div>
+               </div>
+               <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsMuted(!isMuted)}
+                    className={`p-2 rounded-lg border transition-all ${isMuted ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
+                    title={isMuted ? "Enable Audio" : "Mute Audio"}
+                  >
+                    {isMuted ? <BellOff size={14} /> : <Volume2 size={14} />}
+                  </button>
+                  <button onClick={() => setIsNotificationPanelOpen(false)} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-500 transition-colors">
+                    <X size={16} />
+                  </button>
+               </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 min-h-[300px]">
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
+                   <Activity size={32} className="mb-4 text-slate-500" />
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Matrix Idle</p>
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <div key={n.id} className={`p-4 rounded-2xl border transition-all bg-linear-to-r group relative ${n.read ? 'bg-white/[0.02] border-white/5' : 'bg-blue-500/5 border-blue-500/20 shadow-lg shadow-blue-500/5'}`}>
+                    <div className="flex items-start gap-4">
+                      <div className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${n.read ? 'bg-slate-700' : 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]'}`}></div>
+                      <div className="flex-1 space-y-2">
+                         <div className="flex justify-between items-start">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                               {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                               {!n.read && (
+                                 <button 
+                                   onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item))}
+                                   className="p-1 px-2 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 rounded hover:bg-emerald-500/20"
+                                 >Read</button>
+                               )}
+                               <button 
+                                 onClick={() => deleteNotification(n.id)}
+                                 className="p-1 px-2 text-[8px] font-black uppercase text-rose-400 bg-rose-500/10 rounded hover:bg-rose-500/20"
+                               >Delete</button>
+                            </div>
+                         </div>
+                         <p className={`text-xs leading-relaxed ${n.read ? 'text-slate-400' : 'text-slate-200 font-bold'}`}>{n.message}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {notifications.length > 0 && (
+              <div className="p-4 border-t border-white/5 bg-white/[0.01] grid grid-cols-2 gap-3">
+                 <button 
+                   onClick={markAllAsRead}
+                   className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                 >
+                   <CheckCircle2 size={12} /> Mark All Read
+                 </button>
+                 <button 
+                   onClick={clearAllNotifications}
+                   className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                 >
+                   <Trash2 size={12} /> Purge All
+                 </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

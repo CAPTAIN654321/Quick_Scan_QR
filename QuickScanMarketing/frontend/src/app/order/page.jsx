@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { 
@@ -10,18 +10,53 @@ import toast, { Toaster } from "react-hot-toast";
 
 export default function OrderPage() {
   const router = useRouter();
-  const [order] = useState(() => {
-    if (typeof window === "undefined") return null;
-    const saved = localStorage.getItem("pendingOrder");
-    if (!saved) return null;
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      console.error("Failed to parse order data", e);
-      return null;
-    }
-  });
+  const [order, setOrder] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [address, setAddress] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "India"
+  });
+  const [paymentMethod, setPaymentMethod] = useState("Credit Card");
+
+  useEffect(() => {
+    // Load pending order
+    const savedOrder = localStorage.getItem("pendingOrder");
+    if (savedOrder) {
+      try {
+        setOrder(JSON.parse(savedOrder));
+      } catch (e) {
+        console.error("Failed to parse order data", e);
+      }
+    }
+
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      // Try to fetch latest user data for address
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/getbyemail/${user.email}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.address) {
+                setAddress({
+                    ...address,
+                    ...data.address,
+                    fullName: data.address.fullName || data.name,
+                    email: data.email
+                });
+            } else {
+                setAddress({...address, fullName: user.name, email: user.email});
+            }
+        }).catch(err => {
+            setAddress({...address, fullName: user.name, email: user.email});
+        });
+    }
+  }, []);
 
   const getPrice = (formatId) => {
     const prices = {
@@ -33,8 +68,27 @@ export default function OrderPage() {
     return prices[formatId] || 99.99;
   };
 
+  const [isSavingToProfile, setIsSavingToProfile] = useState(true);
+
   const handleOrderNow = async () => {
+    if (!address.fullName || !address.street || !address.city || !address.phone) {
+        toast.error("Please fill in shipping details");
+        return;
+    }
+
     try {
+      // 1. Save to profile if requested
+      const userData = localStorage.getItem('user');
+      if (isSavingToProfile && userData) {
+          const user = JSON.parse(userData);
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/update/${user._id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address: address })
+          });
+      }
+
+      // 2. Place order
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/order/add`, {
         method: 'POST',
         headers: {
@@ -43,7 +97,10 @@ export default function OrderPage() {
         body: JSON.stringify({
           ...order,
           quantity: quantity,
-          totalPrice: total
+          totalPrice: total,
+          address: address,
+          paymentMethod: paymentMethod,
+          paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Completed' // Mocking payment completion for card
         })
       });
 
@@ -178,6 +235,122 @@ export default function OrderPage() {
                              {txt.content}
                           </div>
                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Fulfillment Section */}
+            <div className="bg-[#14213D] border border-white/5 p-8 rounded-[2.5rem] shadow-xl mb-8">
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400">
+                            <Users size={22} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">Agent Profile</h3>
+                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Delivery & Coordination Intel</p>
+                        </div>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                        <input 
+                            type="checkbox" 
+                            id="saveProfile"
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 bg-transparent"
+                            checked={isSavingToProfile}
+                            onChange={(e) => setIsSavingToProfile(e.target.checked)}
+                        />
+                        <label htmlFor="saveProfile" className="text-[10px] font-black uppercase text-slate-400 cursor-pointer">Save to Profile</label>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Identity</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all"
+                            placeholder="Receiver Name"
+                            value={address.fullName}
+                            onChange={(e) => setAddress({...address, fullName: e.target.value})}
+                        />
+                    </div>
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Signal (Phone)</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all"
+                            placeholder="+91 XXXXX XXXXX"
+                            value={address.phone}
+                            onChange={(e) => setAddress({...address, phone: e.target.value})}
+                        />
+                    </div>
+                    <div className="md:col-span-2 space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Deployment Location (Address)</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all"
+                            placeholder="House No., Building, Street Name"
+                            value={address.street}
+                            onChange={(e) => setAddress({...address, street: e.target.value})}
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Sector (City)</label>
+                            <input 
+                                type="text" 
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all"
+                                placeholder="City"
+                                value={address.city}
+                                onChange={(e) => setAddress({...address, city: e.target.value})}
+                            />
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Zone (PIN)</label>
+                            <input 
+                                type="text" 
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all"
+                                placeholder="400001"
+                                value={address.zipCode}
+                                onChange={(e) => setAddress({...address, zipCode: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="sm:hidden mt-6 flex items-center gap-2 px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+                    <input 
+                        type="checkbox" 
+                        id="saveProfileMobile"
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 bg-transparent"
+                        checked={isSavingToProfile}
+                        onChange={(e) => setIsSavingToProfile(e.target.checked)}
+                    />
+                    <label htmlFor="saveProfileMobile" className="text-[10px] font-black uppercase text-slate-400 cursor-pointer">Save to Agent Profile</label>
+                </div>
+
+                <div className="mt-10 pt-10 border-t border-white/5">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
+                            <CreditCard size={20} />
+                        </div>
+                        <h3 className="text-sm font-black italic uppercase tracking-tighter text-white">Payment Method</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => setPaymentMethod("Credit Card")}
+                            className={`p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${paymentMethod === "Credit Card" ? 'bg-blue-600 border-blue-500 text-white shadow-[0_10px_20px_rgba(37,99,235,0.2)]' : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'}`}
+                        >
+                            <CreditCard size={18} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Card</span>
+                        </button>
+                        <button 
+                            onClick={() => setPaymentMethod("COD")}
+                            className={`p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${paymentMethod === "COD" ? 'bg-orange-600 border-orange-500 text-white shadow-[0_10px_20px_rgba(249,115,22,0.2)]' : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'}`}
+                        >
+                            <Truck size={18} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">COD</span>
+                        </button>
                     </div>
                 </div>
             </div>
