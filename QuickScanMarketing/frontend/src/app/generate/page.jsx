@@ -8,6 +8,7 @@ import {
   Menu, X, Home, Zap, Layers, Activity, Check, Download, Palette, Link as LinkIcon, Type, QrCode, Layout, Settings2
 } from "lucide-react";
 import TemplateRenderer from "@/components/Templates/TemplateRenderer";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 
 export default function Generate() {
   const router = useRouter();
@@ -126,7 +127,8 @@ export default function Generate() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-orange-500/30">
+    <UserAuthWrapper>
+      <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-orange-500/30">
       
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -678,5 +680,6 @@ export default function Generate() {
       </div>
 
     </div>
+    </UserAuthWrapper>
   );
 }

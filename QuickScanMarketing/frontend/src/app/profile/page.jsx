@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
@@ -65,35 +66,28 @@ export default function ProfilePage() {
         updateData.password = formData.newPassword;
       }
 
-      const res = await fetch(`${apiUrl}/user/update/${user._id}`, {
-        method: "PUT",
+      // Note: User ID would typically be handled via token on backend
+      // Here we use a hypothetical update endpoint
+      const res = await fetch(`${apiUrl}/user/update/${user._id || 'me'}`, {
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(updateData)
       });
 
       if (res.ok) {
-        const updatedUser = await res.json();
-        const newUserObj = { ...user, ...updateData };
-        delete newUserObj.password; // Don't store password in localstorage
-        localStorage.setItem('user', JSON.stringify(newUserObj));
-        setUser(newUserObj);
-        toast.success("Identity Nexus Updated Successfully");
-        
-        // Clear password fields
-        setFormData(prev => ({
-          ...prev,
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: ""
-        }));
+        const updatedUser = { ...user, name: formData.name, email: formData.email };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        toast.success("Identity profile updated successfully.");
+        setFormData(prev => ({ ...prev, currentPassword: "", newPassword: "", confirmPassword: "" }));
       } else {
-        toast.error("Network rejection. Please verify credentials.");
+        toast.error("Failed to update profile data.");
       }
     } catch (err) {
-      toast.error("Security breach or connection failure");
+      toast.error("Network synchronization error.");
     } finally {
       setSaving(false);
     }
@@ -106,191 +100,185 @@ export default function ProfilePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B132B] text-white p-6 md:p-12 font-sans selection:bg-indigo-500/30">
-      <div className="max-w-4xl mx-auto space-y-10">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-indigo-400 font-bold tracking-[0.3em] text-[10px] uppercase">
-              <Terminal size={14} />
-              <span>Identity_Management / Core</span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter">My Profile</h1>
-          </div>
-          <Link href="/dashboard" className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-white/10 transition-all font-black uppercase tracking-widest text-[10px]">
-             <ArrowLeft size={16} /> Back to Hub
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <UserAuthWrapper>
+      <div className="min-h-screen bg-[#0B132B] text-white p-6 md:p-12 font-sans selection:bg-indigo-500/30">
+        <div className="max-w-4xl mx-auto space-y-10">
           
-          {/* Left Panel - Avatar & Status */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-[#14213D] border border-white/5 rounded-[2.5rem] p-8 text-center relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-              
-              <div className="relative inline-block mb-6">
-                <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
-                  {user.name?.[0].toUpperCase()}
-                </div>
-                <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
-                  <Camera size={18} className="text-white" />
-                </button>
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-indigo-400 font-bold tracking-[0.3em] text-[10px] uppercase">
+                <Terminal size={14} />
+                <span>Identity_Management / Core</span>
               </div>
-
-              <div className="space-y-1">
-                <h3 className="text-2xl font-black text-white italic truncate px-2">{user.name}</h3>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{user.email}</p>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-white/5 flex flex-col gap-3">
-                 <div className="flex items-center justify-between px-3 py-2 bg-black/20 rounded-xl border border-white/5">
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Security Mode</span>
-                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1">
-                      <Shield size={10} /> Active
-                    </span>
-                 </div>
-                 <div className="flex items-center justify-between px-3 py-2 bg-black/20 rounded-xl border border-white/5">
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nexus ID</span>
-                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">V-PRO#{user._id?.slice(-4).toUpperCase()}</span>
-                 </div>
-              </div>
+              <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter">My Profile</h1>
             </div>
-
-            <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-[2rem] p-6 space-y-4">
-               <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2">
-                 <AlertCircle size={14} /> Security Protocol
-               </h4>
-               <p className="text-[11px] leading-relaxed text-indigo-200/60 font-medium">
-                 Ensure your identity credentials remain confidential. Master-level changes are logged across the decentralized registry.
-               </p>
-            </div>
+            <Link href="/dashboard" className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-white/10 transition-all font-black uppercase tracking-widest text-[10px]">
+               <ArrowLeft size={16} /> Back to Hub
+            </Link>
           </div>
 
-          {/* Right Panel - Edit Form */}
-          <div className="lg:col-span-2 space-y-8">
-            <form onSubmit={handleUpdateProfile} className="bg-[#14213D] border border-white/5 rounded-[2.5rem] p-8 md:p-12 space-y-10 shadow-2xl relative overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Basic Details */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3">
-                    <User size={20} className="text-indigo-400" /> Basic Details
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Full Identity Name</label>
-                      <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-indigo-400">
-                           <User size={16} />
-                         </div>
-                         <input 
-                           type="text" 
-                           value={formData.name}
-                           onChange={(e) => setFormData({...formData, name: e.target.value})}
-                           className="w-full bg-[#0B132B] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-800"
-                           placeholder="Enter registered name"
-                         />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Primary Email Node</label>
-                      <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-indigo-400">
-                           <Mail size={16} />
-                         </div>
-                         <input 
-                           type="email" 
-                           value={formData.email}
-                           onChange={(e) => setFormData({...formData, email: e.target.value})}
-                           className="w-full bg-[#0B132B] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-800"
-                           placeholder="Enter master email"
-                         />
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Left Panel - Avatar & Status */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-[#14213D] border border-white/5 rounded-[2.5rem] p-8 text-center relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                
+                <div className="relative inline-block mb-6">
+                  <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
+                    {user.name?.[0].toUpperCase()}
                   </div>
+                  <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
+                    <Camera size={18} className="text-white" />
+                  </button>
                 </div>
 
-                {/* Password Nexus */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-3 text-purple-400">
-                    <Lock size={20} /> Security Nexus
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Update Password</label>
-                      <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-purple-400">
-                           <Lock size={16} />
-                         </div>
-                         <input 
-                           type={showNewPass ? "text" : "password"} 
-                           value={formData.newPassword}
-                           onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
-                           className="w-full bg-[#0B132B] border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-sm font-bold focus:outline-none focus:border-purple-500/50 transition-all placeholder:text-slate-800"
-                           placeholder="New Secure Key"
-                         />
-                         <button 
-                           type="button"
-                           onClick={() => setShowNewPass(!showNewPass)}
-                           className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-600 hover:text-white transition-colors"
-                         >
-                            {showNewPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                         </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Confirm Secret Key</label>
-                      <div className="relative group">
-                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-purple-400">
-                           <CheckCircle2 size={16} />
-                         </div>
-                         <input 
-                           type="password" 
-                           value={formData.confirmPassword}
-                           onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                           className="w-full bg-[#0B132B] border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-purple-500/50 transition-all placeholder:text-slate-800"
-                           placeholder="Verify Secret Key"
-                         />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-                 <p className="text-[10px] font-bold text-slate-500 italic">Last login: {new Date().toLocaleDateString()} from local node</p>
-                 <button 
-                   type="submit"
-                   disabled={saving}
-                   className="flex items-center gap-3 px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] italic text-xs shadow-[0_10px_30px_rgba(79,70,229,0.3)] transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:translate-y-0 active:scale-95"
-                 >
-                   {saving ? (
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                   ) : (
-                      <Save size={16} />
-                   )}
-                   Synchronize Changes
-                 </button>
-              </div>
-            </form>
-
-            <div className="bg-rose-500/5 border border-rose-500/10 rounded-[2rem] p-8 flex items-center justify-between group cursor-pointer hover:bg-rose-500/10 transition-all">
                 <div className="space-y-1">
-                   <h4 className="text-sm font-black text-rose-400 italic uppercase">Deactivate Identity Node</h4>
-                   <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Permanently dissolve your presence from the matrix</p>
+                  <h3 className="text-2xl font-black text-white italic truncate px-2">{user.name}</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{user.email}</p>
                 </div>
-                <div className="p-3 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 group-hover:bg-rose-500 group-hover:text-white transition-all">
-                   <AlertCircle size={20} />
+
+                <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
+                   <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Access Level</span>
+                      <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{user.role || 'Agent'}</span>
+                   </div>
+                   <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Security</span>
+                      <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Verified</span>
+                   </div>
                 </div>
+              </div>
+
+              <div className="bg-[#0A1128] border border-white/5 rounded-2xl p-6">
+                 <div className="flex items-center gap-3 mb-4">
+                    <Shield size={18} className="text-indigo-400" />
+                    <h4 className="text-sm font-black italic uppercase tracking-widest">Security Intel</h4>
+                 </div>
+                 <p className="text-[10px] leading-relaxed text-slate-500 font-medium">Your account is protected by hardware-grade encryption. Change your security keys regularly to maintain active clearance.</p>
+              </div>
+            </div>
+
+            {/* Right Panel - Settings Form */}
+            <div className="lg:col-span-2">
+              <form onSubmit={handleUpdateProfile} className="bg-[#14213D] border border-white/5 rounded-[2.5rem] p-8 md:p-12 space-y-10 shadow-2xl">
+                
+                {/* Identity Information */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 mb-2">
+                    <User size={20} className="text-indigo-400" />
+                    <h3 className="text-xl font-black italic uppercase tracking-widest underline decoration-indigo-500/30 underline-offset-8">Identity Protocol</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Display Alias</label>
+                      <input 
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        className="w-full bg-[#0B132B] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-indigo-500 outline-none transition-all"
+                        placeholder="Agent Name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Communication Hub (Email)</label>
+                      <input 
+                        type="email"
+                        value={formData.email}
+                        readOnly
+                        className="w-full bg-[#0B132B]/50 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-slate-500 outline-none cursor-not-allowed"
+                        placeholder="agent@nexus.net"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Password Management */}
+                <div className="space-y-6 pt-10 border-t border-white/5">
+                  <div className="flex items-center gap-4 mb-2">
+                    <Lock size={20} className="text-purple-400" />
+                    <h3 className="text-xl font-black italic uppercase tracking-widest underline decoration-purple-500/30 underline-offset-8">Keys Authorization</h3>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Current Secret</label>
+                      <div className="relative">
+                        <input 
+                          type={showCurrentPass ? "text" : "password"}
+                          value={formData.currentPassword}
+                          onChange={(e) => setFormData({...formData, currentPassword: e.target.value})}
+                          className="w-full bg-[#0B132B] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-purple-500 outline-none transition-all pr-12"
+                          placeholder="••••••••"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                        >
+                          {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">New Root Key</label>
+                        <div className="relative">
+                          <input 
+                            type={showNewPass ? "text" : "password"}
+                            value={formData.newPassword}
+                            onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
+                            className="w-full bg-[#0B132B] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-purple-500 outline-none transition-all pr-12"
+                            placeholder="New secure access"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowNewPass(!showNewPass)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                          >
+                            {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Repeat Root Key</label>
+                        <input 
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                          className="w-full bg-[#0B132B] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-purple-500 outline-none transition-all"
+                          placeholder="Verify new access"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <div className="pt-6">
+                  <button 
+                    type="submit"
+                    disabled={saving}
+                    className="w-full bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black italic tracking-widest uppercase py-5 rounded-2xl flex justify-center items-center gap-3 shadow-[0_20px_40px_rgba(79,70,229,0.3)] transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50"
+                  >
+                    {saving ? (
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <>
+                        <Save size={18} /> Save Identity Update
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </form>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </UserAuthWrapper>
   );
 }

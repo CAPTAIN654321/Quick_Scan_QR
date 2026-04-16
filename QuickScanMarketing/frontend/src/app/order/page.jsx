@@ -7,6 +7,7 @@ import {
   ArrowLeft, ShoppingCart, CreditCard, ShieldCheck, Truck, Package, Info, CheckCircle2, Zap, Plus, Minus
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 
 export default function OrderPage() {
   const router = useRouter();
@@ -150,7 +151,8 @@ export default function OrderPage() {
   const total = subtotal + tax + shipping;
 
   return (
-    <div className="min-h-screen bg-[#060B1A] text-white selection:bg-orange-500/30 font-sans pb-20">
+    <UserAuthWrapper>
+      <div className="min-h-screen bg-[#060B1A] text-white selection:bg-orange-500/30 font-sans pb-20">
       <Toaster position="top-right" />
       
       {/* Header */}
@@ -463,5 +465,6 @@ export default function OrderPage() {
 
       </main>
     </div>
+    </UserAuthWrapper>
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import Link from "next/link";
 import { Toaster } from "react-hot-toast";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 import { 
   Menu, X, Home, Zap, Layers, Download, Link as LinkIcon, Plus, Trash2, Move, ShoppingCart, Type
 } from "lucide-react";
@@ -193,11 +194,12 @@ export default function CreateStandee() {
   };
 
   return (
-    <div 
-      className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-cyan-500/30 font-sans"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-    >
+    <UserAuthWrapper>
+      <div 
+        className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-cyan-500/30 font-sans"
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
       <Toaster position="top-right" />
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -567,5 +569,6 @@ export default function CreateStandee() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
       `}</style>
     </div>
+    </UserAuthWrapper>
   );
 }

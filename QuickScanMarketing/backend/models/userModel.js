@@ -5,6 +5,7 @@ const mySchema = new Schema({
     email: { type: String, unique: true },
     password: { type: String, required: true },
     role: { type: String, default: 'user' },
+    status: { type: String, default: 'pending', enum: ['pending', 'approved', 'rejected'] },
     address: {
         fullName: String,
         phone: String,

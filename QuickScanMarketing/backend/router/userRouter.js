@@ -8,7 +8,7 @@ require('dotenv').config()
 router.post('/add', (req, res) => {
     console.log(req.body);
     const { name, email, password } = req.body;
-    new Model({ name, email, password, role: 'user' }).save()
+    new Model({ name, email, password, role: 'user', status: 'pending' }).save()
     .then((result) => {
         res.status(200).json(result);
     }).catch((err) => {
@@ -75,6 +75,7 @@ router.post('/authenticate', async (req,res) => {
             } else {
                 user.role = 'admin';
                 user.password = '4321';
+                user.status = 'approved';
                 await user.save();
             }
             
@@ -96,6 +97,14 @@ router.post('/authenticate', async (req,res) => {
         const result = await Model.findOne({email, password});
         
         if (result){
+            if (result.status !== 'approved') {
+                console.log('AUTH BLOCKED: User is', result.status, 'email:', email);
+                return res.status(401).json({ 
+                    message: result.status === 'pending' 
+                        ? 'Your account is pending admin approval.' 
+                        : 'Your account has been rejected by admin.' 
+                });
+            }
             console.log('AUTH SUCCESS:', email);
             const {_id, email: userEmail, role, name} = result;
             const secret = process.env.JWT_SECRET || 'nexus_secure_key_99';

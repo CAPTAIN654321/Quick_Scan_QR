@@ -13,12 +13,14 @@ router.get('/metrics', verifyAdmin, async (req, res) => {
             { $group: { _id: null, qrCount: { $sum: 1 }, totalScans: { $sum: "$scanCount" } } }
         ]);
         const orderCount = await Order.countDocuments();
+        const pendingRequests = await User.countDocuments({ status: 'pending' });
         
         res.json({
             userCount,
             qrCount: metricsData[0]?.qrCount || 0,
             scanCount: metricsData[0]?.totalScans || 0,
             orderCount,
+            pendingRequests,
             status: 'Operational'
         });
     } catch (err) {
@@ -38,8 +40,32 @@ router.get('/users', verifyAdmin, async (req, res) => {
 
 router.delete('/delete-user/:id', verifyAdmin, async (req, res) => {
     try {
+        const user = await User.findById(req.params.id);
+        if (user && user.email === 'rahulvarma100000@gmail.com') {
+            return res.status(403).json({ message: 'Root Admin account is protected and cannot be decommissioned.' });
+        }
         await User.findByIdAndDelete(req.params.id);
         res.json({ message: 'User deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Admin Approval Protocol
+router.get('/pending-users', verifyAdmin, async (req, res) => {
+    try {
+        const users = await User.find({ status: 'pending' });
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/update-user-status/:id', verifyAdmin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        const user = await User.findByIdAndUpdate(req.params.id, { status }, { new: true });
+        res.json(user);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

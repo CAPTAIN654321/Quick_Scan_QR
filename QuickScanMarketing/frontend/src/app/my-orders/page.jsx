@@ -9,6 +9,7 @@ import {
   CreditCard, Calendar, Hash, ShieldCheck, Map
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 
 const STATUS_CONFIG = {
   Pending:    { color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/20",   icon: Clock,         label: "Pending" },
@@ -198,7 +199,8 @@ export default function MyOrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060B1A] text-white font-sans">
+    <UserAuthWrapper>
+      <div className="min-h-screen bg-[#060B1A] text-white font-sans">
       <Toaster position="top-right" />
 
       {/* ── Header ── */}
@@ -338,5 +340,6 @@ export default function MyOrdersPage() {
 
       </main>
     </div>
+    </UserAuthWrapper>
   );
 }

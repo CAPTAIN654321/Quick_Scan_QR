@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import QRCode from "react-qr-code";
 import Link from "next/link";
+import UserAuthWrapper from "@/components/UserAuthWrapper";
 import { 
   Menu, 
   Bell, 
@@ -259,7 +260,8 @@ export default function Dashboard() {
 
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-blue-500/30">
+    <UserAuthWrapper>
+      <div className="flex h-screen overflow-hidden bg-[#0A1128] text-white selection:bg-blue-500/30 font-sans">
       
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -1117,5 +1119,6 @@ export default function Dashboard() {
         </>
       )}
     </div>
+    </UserAuthWrapper>
   );
 }
