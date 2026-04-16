@@ -30,7 +30,7 @@ const Footer = () => {
           </nav>
 
           <p className="text-sm text-slate-400">
-            © {new Date().getFullYear()} QuickScan Marketing. All rights reserved.
+            © {new Date().getFullYear()} Vision QR Pro. All rights reserved.
           </p>
         </div>
       </div>

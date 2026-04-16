@@ -8,7 +8,7 @@ require('dotenv').config()
 router.post('/add', (req, res) => {
     console.log(req.body);
     const { name, email, password } = req.body;
-    new Model({ name, email, password, role: 'user', status: 'pending' }).save()
+    new Model({ name, email, password, role: 'user', status: 'approved' }).save()
     .then((result) => {
         res.status(200).json(result);
     }).catch((err) => {
@@ -61,6 +61,30 @@ router.put('/update/:id', (req,res) => {
     });
 });
 
+router.put('/update-me', verifyToken, async (req,res) => {
+    try {
+        const user = await Model.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // If password update is requested, verify old password first
+        if (req.body.password) {
+            if (!req.body.currentPassword) {
+                return res.status(400).json({ message: 'Current password is required to set a new one.' });
+            }
+            if (user.password !== req.body.currentPassword) {
+                return res.status(401).json({ message: 'Current secret verification failed. Password remains unchanged.' });
+            }
+        }
+
+        const updatedUser = await Model.findByIdAndUpdate(req.user._id, req.body, {new: true});
+        const {password, ...others} = updatedUser.toObject();
+        res.status(200).json(others);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json(err);
+    }
+});
+
 router.post('/authenticate', async (req,res) => {
     try {
         const { email, password} = req.body;
@@ -89,7 +113,7 @@ router.post('/authenticate', async (req,res) => {
                 {expiresIn:'24h' },
                 (err, token) => {
                     if(err) return res.status(500).json({ message: 'JWT Error'});
-                    res.status(201).json({token, role, name});
+                    res.status(201).json({token, role, name, _id, email: userEmail});
                 }
             );
         }
@@ -117,7 +141,7 @@ router.post('/authenticate', async (req,res) => {
                         console.error('JWT Error:', err);
                         res.status(500).json({ message: 'Error creating token'});
                     } else {
-                        res.status(201).json({token, role, name});
+                        res.status(201).json({token, role, name, _id, email: userEmail});
                     }
                 }
             );

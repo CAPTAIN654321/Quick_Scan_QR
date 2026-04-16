@@ -64,11 +64,11 @@ export default function ProfilePage() {
 
       if (formData.newPassword) {
         updateData.password = formData.newPassword;
+        updateData.currentPassword = formData.currentPassword;
       }
 
-      // Note: User ID would typically be handled via token on backend
-      // Here we use a hypothetical update endpoint
-      const res = await fetch(`${apiUrl}/user/update/${user._id || 'me'}`, {
+      // Using the session-aware update-me endpoint
+      const res = await fetch(`${apiUrl}/user/update-me`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -78,9 +78,10 @@ export default function ProfilePage() {
       });
 
       if (res.ok) {
-        const updatedUser = { ...user, name: formData.name, email: formData.email };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
+        const updatedUserResponse = await res.json();
+        const fullUser = { ...user, ...updatedUserResponse };
+        localStorage.setItem('user', JSON.stringify(fullUser));
+        setUser(fullUser);
         toast.success("Identity profile updated successfully.");
         setFormData(prev => ({ ...prev, currentPassword: "", newPassword: "", confirmPassword: "" }));
       } else {
@@ -127,7 +128,7 @@ export default function ProfilePage() {
                 
                 <div className="relative inline-block mb-6">
                   <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
-                    {user.name?.[0].toUpperCase()}
+                    {user.name?.[0].toUpperCase() || "A"}
                   </div>
                   <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
                     <Camera size={18} className="text-white" />
@@ -189,7 +190,7 @@ export default function ProfilePage() {
                         value={formData.email}
                         readOnly
                         className="w-full bg-[#0B132B]/50 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-slate-500 outline-none cursor-not-allowed"
-                        placeholder="agent@nexus.net"
+                        placeholder={user.email || "agent@nexus.net"}
                       />
                     </div>
                   </div>

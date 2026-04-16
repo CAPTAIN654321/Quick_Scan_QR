@@ -74,9 +74,8 @@ app.listen(port, '0.0.0.0', () => {
                     // Update role and password for both accounts to ensure access
                     if (acc.email === 'admin@smartqr.com' || acc.email === 'rahulvarma100000@gmail.com') {
                         existing.role = 'admin';
-                        existing.password = acc.password; // adminpassword123 or password
                         await existing.save();
-                        console.log(`[SEED] Reset ${acc.email} credentials`);
+                        console.log(`[SEED] Verified ${acc.email} admin clearance`);
                     } else if (existing.role !== 'admin') {
                         existing.role = 'admin';
                         await existing.save();

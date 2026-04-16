@@ -35,8 +35,10 @@ const LoginPage = () => {
         localStorage.clear();
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify({
+          _id: response.data._id,
           role: response.data.role,
-          name: response.data.name
+          name: response.data.name,
+          email: response.data.email
         }));
         console.log('Saved user to storage. Role detected:', response.data.role);
         
