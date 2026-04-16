@@ -5,6 +5,27 @@ const QR = require('../models/qrModel');
 const Order = require('../models/orderModel');
 const { verifyAdmin } = require('../middlewares/verifyToken');
 
+router.post('/create-admin', verifyAdmin, async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        const existing = await User.findOne({ email });
+        if (existing) return res.status(400).json({ message: 'Personnel identifier (email) already exists in the matrix.' });
+
+        const newAdmin = new User({
+            name,
+            email,
+            password,
+            role: 'admin',
+            status: 'approved'
+        });
+
+        await newAdmin.save();
+        res.status(201).json({ message: 'New administrative unit initialized successfully.', user: newAdmin });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Global metrics for admin dashboard
 router.get('/metrics', verifyAdmin, async (req, res) => {
     try {
