@@ -57,7 +57,7 @@ export default function Generate() {
   const [customConfig, setCustomConfig] = useState({});
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/template/all`)
+    fetch(`${apiUrl}/template/all`)
       .then(res => res.json())
       .then(data => setTemplates(data))
       .catch(err => console.error("Error fetching templates:", err));
