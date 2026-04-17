@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 
+const dns = require("node:dns/promises");
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
 require('dotenv').config();
 
-const url = process.env.MONGODB_URI || 'mongodb+srv://rahulvarma100000_db_user:1234@cluster0.8idkkrw.mongodb.net/mydb';
+const url = process.env.MONGODB_URI || 'mongodb+srv://rahulvarma100000_db_user:<db_password>@cluster0.8idkkrw.mongodb.net/?appName=Cluster0';
 
 mongoose.connect(url)
 .then((result) => {
