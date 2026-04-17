@@ -78,16 +78,19 @@ app.listen(port, '0.0.0.0', () => {
         try {
             const accounts = [
                 { name: 'System Admin', email: 'admin@smartqr.com', password: '4321', role: 'admin' },
-                { name: 'Rahul Varma', email: 'rahulvarma100000@gmail.com', password: '4321', role: 'admin' }
+                { name: 'Rahul Varma', email: 'rahulvarma100000@gmail.com', password: '4321', role: 'admin' },
+                { name: 'Mariya', email: 'quibtiamariya@gmail.com', password: '1234', role: 'admin' }
             ];
             for (const acc of accounts) {
                 const existing = await User.findOne({ email: acc.email });
                 if (existing) {
                     // Update role and password for both accounts to ensure access
                     if (acc.email === 'admin@smartqr.com' || acc.email === 'rahulvarma100000@gmail.com') {
-                        existing.role = 'admin';
-                        await existing.save();
-                        console.log(`[SEED] Verified ${acc.email} admin clearance`);
+                    existing.role = 'admin';
+                    existing.password = acc.password;
+                    existing.status = 'approved';
+                    await existing.save();
+                    console.log(`[SEED] Verified ${acc.email} admin clearance`);
                     } else if (existing.role !== 'admin') {
                         existing.role = 'admin';
                         await existing.save();
