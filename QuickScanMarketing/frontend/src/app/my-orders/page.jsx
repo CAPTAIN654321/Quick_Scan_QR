@@ -12,22 +12,27 @@ import { Toaster, toast } from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
 
 const STATUS_CONFIG = {
-  Pending:    { color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/20",   icon: Clock,         label: "Pending" },
-  Processing: { color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/20",    icon: RefreshCw,     label: "Processing" },
-  Shipped:    { color: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-500/20",    icon: Truck,         label: "Shipped" },
-  "Out for Delivery": { color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", icon: Map, label: "Out for Delivery" },
-  Delivered:  { color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: CheckCircle2,  label: "Delivered" },
-  Cancelled:  { color: "text-rose-400",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    icon: XCircle,       label: "Cancelled" },
+  Pending:    { color: "text-orange-400",   bg: "bg-orange-500/10",   border: "border-orange-500/20",   icon: Clock,         label: "Pending",     step: 1 },
+  Processing: { color: "text-indigo-400",   bg: "bg-indigo-500/10",   border: "border-indigo-500/20",   icon: RefreshCw,     label: "Processing",  step: 2 },
+  Shipped:    { color: "text-blue-400",     bg: "bg-blue-500/10",     border: "border-blue-500/20",     icon: Truck,         label: "Shipped",     step: 3 },
+  "Out for Delivery": { color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20", icon: Map, label: "Out for Delivery", step: 4 },
+  Delivered:  { color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: CheckCircle2,  label: "Delivered",   step: 5 },
+  Cancelled:  { color: "text-rose-400",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    icon: XCircle,       label: "Cancelled",   step: 0 },
 };
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["Pending"];
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
-      <Icon size={11} />
-      {cfg.label}
-    </span>
+    <div className="flex flex-col items-end gap-1">
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-lg ${cfg.color} ${cfg.bg} ${cfg.border} shadow-[0_0_15px_rgba(0,0,0,0.3)]`}>
+        <Icon size={12} className="animate-pulse" />
+        {cfg.label}
+      </span>
+      {cfg.step > 0 && cfg.step < 5 && (
+        <p className="text-[8px] font-black text-slate-600 uppercase tracking-tighter italic">In Transit Pipeline</p>
+      )}
+    </div>
   );
 }
 
@@ -61,10 +66,9 @@ function OrderCard({ order, index, onCancel }) {
 
       <div className="p-6">
         {/* Header row */}
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
           <div className="flex items-center gap-4">
-            {/* Index badge */}
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
               <span className="text-sm font-black text-indigo-400">#{index + 1}</span>
             </div>
             <div>
@@ -76,10 +80,37 @@ function OrderCard({ order, index, onCancel }) {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-4 items-center">
             <StatusBadge status={order.status} />
-            <PaymentBadge status={order.paymentStatus} />
           </div>
+        </div>
+
+        {/* Progress Bar */}
+        {order.status !== 'Cancelled' && (
+          <div className="mb-6 px-1">
+            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden flex">
+              <div 
+                className={`h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(59,130,246,0.3)] ${
+                  order.status === 'Delivered' ? 'bg-emerald-500 w-full' : 
+                  order.status === 'Shipped' ? 'bg-blue-500 w-3/4' :
+                  order.status === 'Processing' ? 'bg-indigo-500 w-1/2' : 'bg-orange-500 w-1/4'
+                }`}
+              />
+            </div>
+            <div className="flex justify-between mt-2">
+               <span className={`text-[8px] font-black uppercase tracking-widest ${order.status ? 'text-indigo-400' : 'text-slate-700'}`}>Order Placed</span>
+               <span className={`text-[8px] font-black uppercase tracking-widest ${['Processing', 'Shipped', 'Delivered'].includes(order.status) ? 'text-indigo-400' : 'text-slate-700'}`}>Processing</span>
+               <span className={`text-[8px] font-black uppercase tracking-widest ${['Shipped', 'Delivered'].includes(order.status) ? 'text-indigo-400' : 'text-slate-700'}`}>Shipped</span>
+               <span className={`text-[8px] font-black uppercase tracking-widest ${order.status === 'Delivered' ? 'text-emerald-400' : 'text-slate-700'}`}>Delivered</span>
+            </div>
+          </div>
+        )}
+
+        {/* Info badges */}
+        <div className="flex gap-2 items-center mb-5">
+           <PaymentBadge status={order.paymentStatus} />
+           <div className="h-1 w-1 rounded-full bg-slate-800"></div>
+           <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Operation: Logistics_0{index + 1}</p>
         </div>
 
         {/* Specs grid */}
@@ -114,9 +145,17 @@ function OrderCard({ order, index, onCancel }) {
               <span>{formatDate(order.createdAt)}</span>
             </div>
             {order.deliveryAgentNumber && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-lg text-[10px] font-black text-orange-400">
-                <Truck size={12} />
-                AGENT: {order.deliveryAgentNumber}
+              <div className="flex items-center gap-3 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl group/agent transition-all hover:bg-indigo-500/20">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400">
+                   <Truck size={14} className="group-hover/agent:animate-bounce" />
+                </div>
+                <div>
+                   <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-0.5">Deployment Personnel</p>
+                   <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-black text-white italic tracking-widest">{order.deliveryAgentNumber}</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                   </div>
+                </div>
               </div>
             )}
           </div>

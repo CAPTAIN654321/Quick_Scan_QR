@@ -95,20 +95,23 @@ export default function AdminDashboard() {
     } catch (err) { toast.error("Deletion failed"); }
   };
 
-  const updateOrderStatus = async (id, newStatus) => {
+  const updateOrder = async (id, updateData) => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const res = await fetch(`${apiUrl}/order/update/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify(updateData)
       });
       if (res.ok) {
-        toast.success(`Order set to ${newStatus}`);
+        toast.success(`Order data synchronized`);
         fetchData();
       }
-    } catch (err) { toast.error("Order update failed"); }
+    } catch (err) { toast.error("Order synchronization failed"); }
   };
+
+  const updateOrderStatus = (id, newStatus) => updateOrder(id, { status: newStatus });
+  const updateOrderAgent = (id, agentNumber) => updateOrder(id, { deliveryAgentNumber: agentNumber });
 
   const handleCreateAdmin = async (e) => {
     e.preventDefault();
@@ -363,21 +366,51 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-8 py-6">
                              <div className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed max-w-[200px] truncate">{o.address?.street}, {o.address?.city}</div>
-                             <div className="text-[9px] font-black text-indigo-400 mt-1 italic">{o.address?.phone}</div>
+                             <div className="flex flex-col gap-2 mt-2">
+                                 <div className="text-[9px] font-black text-indigo-400 italic flex items-center gap-1.5 bg-indigo-500/5 px-2 py-1 rounded-lg border border-indigo-500/10 w-fit">
+                                    <User size={10} /> {o.address?.phone}
+                                 </div>
+                                 <div className="relative group/agent">
+                                    <input 
+                                       type="text" 
+                                       placeholder="AGENT #" 
+                                       defaultValue={o.deliveryAgentNumber}
+                                       onBlur={(e) => {
+                                          if (e.target.value !== o.deliveryAgentNumber) {
+                                             updateOrderAgent(o._id, e.target.value);
+                                          }
+                                       }}
+                                       className="bg-black/40 border border-white/5 p-1 px-2 rounded-lg text-[9px] font-black text-white outline-none focus:border-amber-500/50 transition-all w-32 placeholder:text-slate-800"
+                                    />
+                                    <Truck size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-700 pointer-events-none" />
+                                 </div>
+                              </div>
                           </td>
-                          <td className="px-8 py-6 text-center">
-                             <div className={`px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${o.status === 'Delivered' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>
-                                {o.status === 'Delivered' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                                {o.status}
-                             </div>
-                          </td>
-                          <td className="px-8 py-6 text-right">
-                             {o.status === 'Pending' ? (
-                               <button onClick={() => updateOrderStatus(o._id, 'Delivered')} className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-900/10"><CheckCircle2 size={16} /></button>
-                             ) : (
-                               <span className="text-[9px] font-black text-slate-600 uppercase italic">Archived</span>
-                             )}
-                          </td>
+                          <td className="px-8 py-6">
+                              <select 
+                                value={o.status} 
+                                onChange={(e) => updateOrderStatus(o._id, e.target.value)}
+                                className={`px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest outline-none bg-black/20 cursor-pointer transition-all ${
+                                  o.status === 'Delivered' ? 'text-emerald-400 border-emerald-500/20' : 
+                                  o.status === 'Shipped' ? 'text-blue-400 border-blue-500/20' :
+                                  o.status === 'Cancelled' ? 'text-rose-400 border-rose-500/20' :
+                                  'text-orange-400 border-orange-500/20'
+                                }`}
+                              >
+                                <option value="Pending" className="bg-[#14213D] text-white">Pending</option>
+                                <option value="Shipped" className="bg-[#14213D] text-white">Shipped</option>
+                                <option value="Delivered" className="bg-[#14213D] text-white">Delivered</option>
+                                <option value="Cancelled" className="bg-[#14213D] text-white">Cancelled</option>
+                              </select>
+                           </td>
+                           <td className="px-8 py-6 text-right">
+                              <div className="flex items-center justify-end gap-2 text-slate-500">
+                                <span className="text-[10px] font-black uppercase italic tracking-tighter">
+                                   {new Date(o.createdAt).toLocaleDateString()}
+                                </span>
+                                <Clock size={12} className="opacity-40" />
+                              </div>
+                           </td>
                         </tr>
                       ))}
                     </tbody>

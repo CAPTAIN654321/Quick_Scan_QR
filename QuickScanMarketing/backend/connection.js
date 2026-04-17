@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
 
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 require('dotenv').config();
 
 const url = process.env.MONGODB_URI || 'mongodb+srv://rahulvarma100000_db_user:1234@cluster0.8idkkrw.mongodb.net/mydb';

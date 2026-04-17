@@ -57,18 +57,20 @@ app.get('/update',(req,res) =>{
 
 
 
-app.listen(port, '0.0.0.0', () => {
-    const networkInterfaces = require('os').networkInterfaces();
-    let localIp = 'localhost';
-    for (const name of Object.keys(networkInterfaces)) {
-        for (const net of networkInterfaces[name]) {
-            if (net.family === 'IPv4' && !net.internal) {
-                localIp = net.address;
-                break;
-            }
+const networkInterfaces = require('os').networkInterfaces();
+let localIp = 'localhost';
+for (const name of Object.keys(networkInterfaces)) {
+    for (const net of networkInterfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+            localIp = net.address;
+            break;
         }
     }
-    console.log(`Server started on http://0.0.0.0:${port} (also accessible at http://${localIp}:${port})`);
+}
+app.locals.localIp = localIp;
+
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server started on http://0.0.0.0:${port} (also accessible at http://${app.locals.localIp}:${port})`);
     
     // Auto-seed Admin Accounts on Startup
     const User = require('./models/userModel');
