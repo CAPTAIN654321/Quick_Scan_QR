@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 
 // Use the exact connection string from connection.js
-const url = 'mongodb+srv://mydb12:xhda@cluster0.hvixjfz.mongodb.net/mydb?appName=Cluster0';
+const url = 'mongodb+srv://rahulvarma100000_db_user:<db_password>@cluster0.8idkkrw.mongodb.net/?appName=Cluster0';
 
 const userSchema = new mongoose.Schema({
     name: String,
