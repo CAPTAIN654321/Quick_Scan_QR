@@ -184,6 +184,44 @@ export default function Dashboard() {
     finally { setIsQuickGenLoading(false); }
   };
 
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Payload Exceeded: Identity image must be under 2MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      setIsSaving(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${apiUrl}/user/update-me`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ avatar: base64 })
+        });
+        if (res.ok) {
+          const updatedUserResponse = await res.json();
+          const fullUser = { ...user, ...updatedUserResponse };
+          localStorage.setItem('user', JSON.stringify(fullUser));
+          setUser(fullUser);
+          toast.success("Biometric visual updated successfully.");
+        } else {
+          toast.error("Avatar synchronization failed.");
+        }
+      } catch (err) {
+        toast.error("Network error during avatar sync.");
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleUpdate = async (id) => {
     try {
       const res = await fetch(`${apiUrl}/qr/update/${id}`, {
@@ -305,9 +343,14 @@ export default function Dashboard() {
         </div>
 
         <div className={`p-6 shrink-0 pb-8 space-y-3 ${isSidebarCollapsed ? 'px-0 flex flex-col items-center' : ''}`}>
-           <div className="w-12 h-12 rounded-full bg-black/50 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
-             <span className="text-white font-bold text-xl">N</span>
-           </div>
+           <label htmlFor="avatar-upload" className="w-12 h-12 rounded-full bg-black/50 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors overflow-hidden group/side">
+             {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" className="w-full h-full object-cover group-hover/side:opacity-50 transition-opacity" />
+             ) : (
+                <span className="text-white font-bold text-xl">{userName?.[0]?.toUpperCase() || 'N'}</span>
+             )}
+             <Camera size={12} className="absolute text-white opacity-0 group-hover/side:opacity-100 transition-opacity pointer-events-none" />
+           </label>
            <button onClick={handleLogout} className={`flex items-center gap-3 py-2.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all ${isSidebarCollapsed ? 'w-10 justify-center' : 'w-full px-3'}`}>
              <LogOut size={16} />
              {!isSidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest">Logout</span>}
@@ -426,7 +469,13 @@ export default function Dashboard() {
               )}
             </div>
             
-            <div className="w-8 h-8 rounded bg-linear-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg border border-white/10"><User size={16} className="text-white" /></div>
+            <label htmlFor="avatar-upload" className="w-8 h-8 rounded bg-linear-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg border border-white/10 overflow-hidden cursor-pointer hover:scale-110 active:scale-95 transition-all">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User size={16} className="text-white" />
+              )}
+            </label>
             <span className="hidden sm:block text-xs font-black text-white/80">{userName}</span>
             <button onClick={handleLogout} className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:text-rose-400 hover:bg-rose-500/10 transition-all flex items-center justify-center shadow-inner group">
               <LogOut size={16} className="group-hover:rotate-12 transition-transform" />
@@ -479,12 +528,23 @@ export default function Dashboard() {
                 <div className="bg-[#14213D] border border-white/5 rounded-[2rem] p-8 text-center relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-purple-500 to-indigo-600"></div>
                   <div className="relative inline-block mb-6 pt-4">
-                    <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
-                      {userName?.[0].toUpperCase() || "A"}
+                    <input 
+                      type="file" 
+                      id="avatar-upload" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                    />
+                    <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform overflow-hidden">
+                      {user?.avatar ? (
+                        <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        userName?.[0].toUpperCase() || "A"
+                      )}
                     </div>
-                    <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
+                    <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg cursor-pointer">
                       <Camera size={18} className="text-white" />
-                    </button>
+                    </label>
                   </div>
                   <div className="space-y-1 mb-8">
                     <h3 className="text-2xl font-black text-white italic tracking-tight">{userName}</h3>
