@@ -20,9 +20,12 @@ try{
     // #region agent log
     fetch('http://127.0.0.1:7741/ingest/add3f7de-0384-48eb-86e9-6555b454a1f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02964d'},body:JSON.stringify({sessionId:'02964d',runId:'run-1',hypothesisId:'H1',location:'backend/router/qrRouter.js:20',message:'qr generate saved',data:{savedId:String(newQR._id),savedType:newQR.type},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
+    const localIp = req.app.locals.localIp;
+    const port = 5000; // Hardcoded as per index.js
     res.status(201).json({
         message:"QR saved successfully",
-        data: newQR
+        data: newQR,
+        suggestedScanUrl: `http://${localIp}:${port}/qr/scan/${newQR._id}`
     });
 }catch (error) {
     // #region agent log
@@ -38,7 +41,13 @@ router.get("/all", async (req, res) => {
         if (!qrList) {
             return res.json([]);
         }
-        res.json(qrList);
+        const localIp = req.app.locals.localIp;
+        const port = 5000;
+        const enhancedQrList = qrList.map(qr => ({
+            ...qr.toObject(),
+            suggestedScanUrl: `http://${localIp}:${port}/qr/scan/${qr._id}`
+        }));
+        res.json(enhancedQrList);
     } catch (error) {
         // #region agent log
         fetch('http://127.0.0.1:7741/ingest/add3f7de-0384-48eb-86e9-6555b454a1f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'02964d'},body:JSON.stringify({sessionId:'02964d',runId:'run-1',hypothesisId:'H3',location:'backend/router/qrRouter.js:41',message:'qr all failed',data:{errorMessage:error.message,code:error.code||null},timestamp:Date.now()})}).catch(()=>{});

@@ -50,3 +50,49 @@
   background-clip: content-box;
   border: 1px solid transparent;
 }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-in {
+  animation: slideDown 0.2s ease-out forwards;
+}
+
+.fade-in {
+  opacity: 0;
+}
+
+.slide-in-from-top-2 {
+  /* handled by slideDown */
+}
+
+.animate-enter {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+.animate-leave {
+  animation: fadeOut 0.2s ease-in forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.zoom-in-95 {
+  animation: zoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+

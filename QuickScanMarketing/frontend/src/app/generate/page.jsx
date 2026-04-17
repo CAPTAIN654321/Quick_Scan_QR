@@ -90,7 +90,7 @@ export default function Generate() {
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        const qrLink = `${apiUrl}/qr/scan/${data.data._id}`;
+        const qrLink = data.suggestedScanUrl || `${apiUrl}/qr/scan/${data.data._id}`;
         setQrValue(qrLink);
         setGeneratedId(data.data._id);
       } else {
