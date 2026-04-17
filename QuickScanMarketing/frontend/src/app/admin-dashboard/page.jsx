@@ -180,19 +180,6 @@ export default function AdminDashboard() {
           <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0B132B]/90 backdrop-blur-xl z-50">
              <div className="flex items-center gap-3 text-indigo-400"><Terminal size={14} /><span className="text-[10px] uppercase font-black tracking-[0.3em]">Command_Center / {view}</span></div>
              <div className="flex items-center gap-4">
-               {(() => {
-                 const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-                 const user = userData ? JSON.parse(userData) : null;
-                 return (
-                   <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center overflow-hidden">
-                     {user?.avatar ? (
-                       <img src={user.avatar} alt="Admin" className="w-full h-full object-cover" />
-                     ) : (
-                       <User size={14} className="text-indigo-400" />
-                     )}
-                   </div>
-                 );
-               })()}
                <Link href="/dashboard" className="text-slate-500 hover:text-white transition-all"><Home size={18} /></Link>
                <button onClick={handleLogout} className="p-2 bg-white/5 rounded-xl hover:bg-rose-500/20 hover:text-rose-400 transition-all border border-white/10"><LogOut size={16} /></button>
              </div>
@@ -254,13 +241,7 @@ export default function AdminDashboard() {
                         <tr key={u._id} className="hover:bg-white/[0.02] transition-colors group">
                           <td className="px-8 py-6">
                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 font-black text-sm border border-white/10 overflow-hidden">
-                                   {u.avatar ? (
-                                      <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                                   ) : (
-                                      u.name?.[0].toUpperCase()
-                                   )}
-                                </div>
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 font-black text-sm border border-white/10">{u.name?.[0].toUpperCase()}</div>
                                 <div>
                                    <p className="text-sm font-black text-white">{u.name}</p>
                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">{u.email}</p>

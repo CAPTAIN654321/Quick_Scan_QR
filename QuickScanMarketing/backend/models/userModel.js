@@ -14,7 +14,6 @@ const mySchema = new Schema({
         state: String,
         zipCode: String
     },
-    avatar: { type: String, default: '' },
     resetOtp: String,
     resetOtpExpires: Date
 }, { timestamps: true });
