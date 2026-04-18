@@ -125,10 +125,13 @@ router.get("/scan/:id", async (req,res)=>{
 
                     <div id="form-container" class="space-y-4">
                         <div class="relative">
-                            <input id="userName" type="text" placeholder="Full Name (Optional)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600">
+                            <input id="userName" type="text" placeholder="Full Name (Required)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 uppercase font-bold tracking-widest">
                         </div>
                         <div class="relative">
-                            <input id="userEmail" type="email" placeholder="Email Address (Optional)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600">
+                            <input id="userEmail" type="email" placeholder="Email Address (Optional)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 lowercase font-bold tracking-widest">
+                        </div>
+                        <div class="relative">
+                            <input id="userPhone" type="tel" placeholder="Phone Number (Required)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-amber-500/50 transition-all text-white placeholder:text-slate-600 font-bold tracking-widest">
                         </div>
                     </div>
 
@@ -141,32 +144,41 @@ router.get("/scan/:id", async (req,res)=>{
             <script>
                 async function sendDataAndRedirect(lat, lng) {
                     try {
-                        const name = document.getElementById('userName').value || "Anonymous";
+                        const name = document.getElementById('userName').value;
                         const email = document.getElementById('userEmail').value || "Not provided";
+                        const phone = document.getElementById('userPhone').value;
+
+                        if (!name) {
+                            showError("Identity verification required: Please enter name.");
+                            return;
+                        }
+
+                        if (!phone) {
+                            showError("Phone connectivity required for signal relay.");
+                            return;
+                        }
 
                         const response = await fetch(window.location.origin + '/qr/track/' + '${qr._id}', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ lat, lng, name, email })
+                            body: JSON.stringify({ lat, lng, name, email, phone })
                         });
                         const data = await response.json();
                         const envFrontend = "${process.env.FRONTEND_URL || ''}";
-                        const defaultFrontendUrl = window.location.protocol + '//' + window.location.hostname + ':3000';
-                        const frontendUrl = envFrontend || defaultFrontendUrl;
+                        const baseUrl = window.location.protocol + '//' + window.location.hostname;
+                        const frontendUrl = envFrontend || (baseUrl + ':3000');
                         
                         if(data.useTemplate) {
-                            const target = frontendUrl + '/view/' + '${qr._id}';
-                            // Beta mode: redirect to lead form first to capture initial data
-                            window.location.href = frontendUrl + '/form?target=' + encodeURIComponent(target) + '&qrId=' + '${qr._id}';
+                            const targetPath = '/view/' + '${qr._id}';
+                            window.location.href = frontendUrl + targetPath;
                         } else if(data.link) {
                             let target = data.link;
                             if (!target.startsWith('http://') && !target.startsWith('https://')) {
                                 target = 'https://' + target;
                             }
-                            // Only use lead form for external links in beta
-                            window.location.href = frontendUrl + '/form?target=' + encodeURIComponent(target) + '&qrId=' + '${qr._id}';
+                            window.location.href = target;
                         } else {
-                            showError("Invalid destination node.");
+                            showError("Intelligence endpoint missing.");
                         }
                     } catch(e) {
                         showError("Nexus connection failure. Retrying...");
@@ -265,7 +277,7 @@ router.post("/track/:id", async (req, res) => {
         const qr = await QR.findById(req.params.id);
         if (!qr) { return res.status(404).json({ error: "QR not found" }); }
 
-        const { lat, lng, name, email } = req.body;
+        const { lat, lng, name, email, phone } = req.body;
         const userAgent = req.headers['user-agent'] || "Unknown";
         const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || "0.0.0.0").replace('::ffff:', '');
         
@@ -340,12 +352,26 @@ router.post("/track/:id", async (req, res) => {
             device,
             name: name || "Anonymous",
             email: email || "Not provided",
+            phoneNumber: phone || "Not Shared",
             isFraud,
             fraudReason,
             riskScore
         });
 
         await qr.save();
+
+        // Save as Lead for Data Feed
+        if (name !== "Anonymous" || email !== "Not provided" || phone !== "Not provided") {
+            const newLead = new Lead({
+                name: name || "Anonymous",
+                email: email || "unknown@system.com",
+                phoneNumber: phone || "Not provided",
+                qrId: qr._id,
+                targetUrl: qr.link
+            });
+            await newLead.save().catch(e => console.error("Lead save err:", e));
+        }
+
         res.json({ 
             link: qr.link,
             useTemplate: !!qr.template,

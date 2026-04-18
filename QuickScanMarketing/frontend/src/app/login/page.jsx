@@ -44,9 +44,15 @@ const LoginPage = () => {
         
         const targetRole = (response.data.role || '').toLowerCase();
         
+        if (isAdminMode && targetRole !== 'admin') {
+          toast.error('ACCESS DENIED: PLEASE LOGIN AS USER');
+          localStorage.clear();
+          return;
+        }
+
         if (targetRole === 'admin') {
           toast.success('Admin clearance verified. Entering Command Center...');
-          window.location.href = '/admin-dashboard'; // Use hard redirect to bypass router issues
+          window.location.href = '/admin-dashboard';
         } else {
           toast.success('Agent clearance verified. Entering Hub...');
           window.location.href = '/dashboard';
@@ -148,6 +154,7 @@ const LoginPage = () => {
           
           {/* The Form */}
           <form className="space-y-6" onSubmit={loginForm.handleSubmit}>
+
             <div className="space-y-2">
               <label 
                 className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isAdminMode ? 'text-slate-400' : 'text-slate-500'}`}
@@ -168,6 +175,7 @@ const LoginPage = () => {
                         : 'bg-white border-slate-200 text-slate-900 focus:ring-indigo-500/50 focus:border-indigo-500'
                     }`} 
                     placeholder="you@email.com"
+                    autoComplete="off"
                 />
               </div>
               {loginForm.errors.email && loginForm.touched.email && (
@@ -198,6 +206,7 @@ const LoginPage = () => {
                         : 'bg-white border-slate-200 text-slate-900 focus:ring-indigo-500/50 focus:border-indigo-500'
                     }`} 
                     placeholder="••••••••"
+                    autoComplete="new-password"
                 />
               </div>
               {loginForm.errors.password && loginForm.touched.password && (
