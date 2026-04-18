@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { 
-  ArrowLeft, ShoppingCart, CreditCard, ShieldCheck, Truck, Package, Info, CheckCircle2, Zap, Plus, Minus
+  ArrowLeft, ShoppingCart, CreditCard, ShieldCheck, Truck, Package, Info, CheckCircle2, Zap, Plus, Minus, Users
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";

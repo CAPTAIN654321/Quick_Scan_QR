@@ -1,4 +1,13 @@
-// this is the main file for any backend folder
+const dns = require('dns');
+// FIX: Set DNS servers to bypass potential local DNS issues with SRV records
+// This must happen at the very top before any other network-related modules are loaded.
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
+
+require('./connection');
+
 const express = require('express');
 const UserRouter = require('./router/userRouter');
 const QRRouter = require('./router/qrRouter');
@@ -7,7 +16,6 @@ const AdminRouter = require('./router/adminRouter');
 const TemplateRouter = require('./router/templateRouter');
 const OrderRouter = require('./router/orderRouter');
 const cors = require('cors');
-require('./connection')
 const app = express();
 const port = 5000;
 
