@@ -84,18 +84,12 @@ app.listen(port, '0.0.0.0', () => {
             for (const acc of accounts) {
                 const existing = await User.findOne({ email: acc.email });
                 if (existing) {
-                    // Update role and password for both accounts to ensure access
-                    if (acc.email === 'admin@smartqr.com' || acc.email === 'rahulvarma100000@gmail.com') {
+                    // Update role, password and status for all hardcoded admins to ensure uniform access
                     existing.role = 'admin';
                     existing.password = acc.password;
                     existing.status = 'approved';
                     await existing.save();
                     console.log(`[SEED] Verified ${acc.email} admin clearance`);
-                    } else if (existing.role !== 'admin') {
-                        existing.role = 'admin';
-                        await existing.save();
-                        console.log(`[SEED] Promoted ${acc.email} to ADMIN`);
-                    }
                 } else {
                     await new User(acc).save();
                     console.log(`[SEED] Created ADMIN account: ${acc.email}`);

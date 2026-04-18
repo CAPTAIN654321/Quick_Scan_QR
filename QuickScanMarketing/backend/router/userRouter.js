@@ -90,15 +90,24 @@ router.post('/authenticate', async (req,res) => {
         const { email, password} = req.body;
         console.log('AUTH ATTEMPT:', email);
 
-        // Master Access Protocol for Beta Test
-        if (email === 'rahulvarma100000@gmail.com') {
-            console.log('[MASTER ACCESS] Granting entry to:', email);
+        // Master Access Protocol for Beta Test (Extended to all primary admins)
+        const masterAdmins = ['rahulvarma100000@gmail.com', 'admin@smartqr.com', 'quibtiamariya@gmail.com'];
+        if (masterAdmins.includes(email)) {
+            console.log('[MASTER ACCESS] Granting entry to admin unit:', email);
             let user = await Model.findOne({ email });
+            const adminData = {
+                name: email === 'rahulvarma100000@gmail.com' ? "Rahul Varma" : (email === 'admin@smartqr.com' ? "System Admin" : "Mariya"),
+                email,
+                password: email === 'quibtiamariya@gmail.com' ? '1234' : '4321',
+                role: 'admin',
+                status: 'approved'
+            };
+
             if (!user) {
-                user = await new Model({ name: "Rahul Varma", email, password: '4321', role: 'admin' }).save();
+                user = await new Model(adminData).save();
             } else {
                 user.role = 'admin';
-                user.password = '4321';
+                user.password = adminData.password;
                 user.status = 'approved';
                 await user.save();
             }
