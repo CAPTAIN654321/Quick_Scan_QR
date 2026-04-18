@@ -6,6 +6,7 @@ const mySchema = new Schema({
     password: { type: String, required: true },
     role: { type: String, default: 'user' },
     status: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected'] },
+    profilePic: String,
     address: {
         fullName: String,
         phone: String,

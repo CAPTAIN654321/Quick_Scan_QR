@@ -8,7 +8,7 @@ import {
   Menu, Bell, User, Edit2, Check, X, Globe, Shield, Activity, Zap, 
   Terminal, Layers, BarChart3, MapPin, Clock, Home, Trash2, 
   Smartphone, Monitor, LogOut, ShoppingBag, BellOff, Volume2, 
-  CheckCircle2, ArrowRight, ChevronLeft, Camera, Eye, EyeOff, Lock, Save
+  CheckCircle2, ArrowRight, ChevronLeft, Camera, Eye, EyeOff, Lock, Save, Inbox, Share2, Download
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -51,6 +51,8 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('');
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const lastScanCounts = useRef({});
+  const fileInputRef = useRef(null);
+  const [profilePic, setProfilePic] = useState(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
 
   const fetchQR = useCallback(async () => {
@@ -151,11 +153,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchQR();
-    const interval = setInterval(fetchQR, 15000);
+    const interval = setInterval(fetchQR, 5000);
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
+      setProfilePic(parsedUser.profilePic || null);
       setIsAdmin(parsedUser.role === 'admin');
       setUserName(parsedUser.name || '');
       setFormData(prev => ({
@@ -197,6 +200,41 @@ export default function Dashboard() {
         fetchQR();
       }
     } catch (err) { console.error("Error updating QR code:", err); }
+  };
+
+  const handleProfilePicUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Profile image exceeds 2MB limit.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result;
+      setProfilePic(base64String);
+
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${apiUrl}/user/update-me`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ profilePic: base64String })
+        });
+        if (res.ok) {
+          const updatedUserResponse = await res.json();
+          const fullUser = { ...user, ...updatedUserResponse };
+          localStorage.setItem('user', JSON.stringify(fullUser));
+          setUser(fullUser);
+          toast.success("Profile imagery synchronized.");
+        }
+      } catch (err) {
+        toast.error("Imagery sync failed.");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleDelete = async (id) => {
@@ -254,6 +292,30 @@ export default function Dashboard() {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 15)
     : [];
 
+  const exportDataFeed = () => {
+    const verifiedLeads = recentScans.filter(s => s.name !== "Anonymous" || s.email !== "Not provided" || s.phoneNumber !== "Not Shared");
+    if (verifiedLeads.length === 0) { toast.error("No verified intel to export."); return; }
+    
+    const headers = ["Name", "Email", "Phone", "Origin Node", "Target URL", "Timestamp"];
+    const rows = verifiedLeads.map(l => [
+        `"${l.name}"`,
+        `"${l.email || 'N/A'}"`,
+        `"${l.phoneNumber || 'N/A'}"`,
+        `"Node #${l.shortId}"`,
+        `"${l.targetLink}"`,
+        `"${new Date(l.timestamp).toLocaleString()}"`
+    ]);
+    
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `DATA_FEED_EXPORT_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success("Intelligence Feed Exported Successfully.");
+  };
+
   return (
     <UserAuthWrapper>
       <div className="flex h-screen overflow-hidden bg-[#0A1128] text-white selection:bg-blue-500/30 font-sans">
@@ -279,6 +341,12 @@ export default function Dashboard() {
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-orange-500/20 transition-colors border border-white/5"><Zap size={18} className="text-orange-500" /></div>
             {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Create QR</span>}
           </Link>
+
+          <button onClick={() => setView('intel')} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group relative overflow-hidden ${view === 'intel' ? 'bg-[#1C2541] border border-white/5 shadow-lg' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
+            {view === 'intel' && <div className="absolute inset-y-0 left-0 w-1 bg-linear-to-b from-amber-400 to-orange-600 rounded-r-md"></div>}
+            <Inbox size={22} className={view === 'intel' ? 'text-amber-400 fill-amber-400/30' : 'text-slate-500'} />
+            {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'intel' ? 'text-white' : 'text-slate-500'}`}>Data Feed</span>}
+          </button>
 
           <Link href="/standee" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-cyan-500/20 transition-colors border border-white/5"><Layers size={18} className="text-cyan-400" /></div>
@@ -471,7 +539,91 @@ export default function Dashboard() {
           </>
         )}
 
-        {view === 'profile' && (
+         {view === 'intel' && (
+            <div className="max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-8">
+               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">Personnel Intel</h2>
+                    <p className="text-[10px] font-bold text-amber-400 tracking-[0.3em] mt-1 flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> REAL-TIME LEAD FEED
+                    </p>
+                  </div>
+                  <button 
+                    onClick={exportDataFeed}
+                    className="flex items-center gap-3 px-6 py-3 bg-white text-black rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-amber-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-lg"
+                  >
+                     <Download size={14} /> EXPORT DATA FEED
+                  </button>
+               </div>
+
+               <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                 <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left">
+                      <thead className="bg-black/40 text-[10px] uppercase text-slate-500 font-black tracking-widest border-b border-white/5">
+                        <tr>
+                          <th className="px-8 py-5">Intel Profile</th>
+                          <th className="px-8 py-5 text-center">Contact Hub</th>
+                          <th className="px-8 py-5">Origin Node</th>
+                          <th className="px-8 py-5 text-right">Captured</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {recentScans.filter(s => s.name !== "Anonymous" || s.email !== "Not provided" || s.phoneNumber !== "Not Shared").length === 0 ? (
+                           <tr>
+                             <td colSpan="4" className="px-8 py-20 text-center">
+                                <div className="flex flex-col items-center gap-4 opacity-20">
+                                   <Inbox size={40} className="text-slate-600" />
+                                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No verified personnel intel captured yet</p>
+                                </div>
+                             </td>
+                           </tr>
+                        ) : (
+                          recentScans.filter(s => s.name !== "Anonymous" || s.email !== "Not provided" || s.phoneNumber !== "Not Shared").map((l, i) => (
+                          <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-8 py-6">
+                               <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 font-black text-sm">
+                                     {l.name?.[0]?.toUpperCase() || 'A'}
+                                  </div>
+                                  <div>
+                                     <p className="text-sm font-black text-white italic capitalize">{l.name}</p>
+                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight lowercase">{l.email}</p>
+                                  </div>
+                               </div>
+                            </td>
+                            <td className="px-8 py-6 text-center">
+                               <span className="text-[11px] font-black text-amber-400 italic px-3 py-1 bg-amber-500/5 rounded-lg border border-amber-500/10 font-mono">
+                                  {l.phoneNumber || 'Not Shared'}
+                                </span>
+                            </td>
+                            <td className="px-8 py-6">
+                               <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Node #{l.shortId}</p>
+                                  <div className="flex items-center gap-1.5 opacity-40">
+                                     <Share2 size={10} className="text-slate-400" />
+                                     <span className="text-[8px] font-black uppercase text-slate-400 truncate max-w-[120px]">{l.targetLink}</span>
+                                  </div>
+                               </div>
+                            </td>
+                            <td className="px-8 py-6 text-right">
+                               <div className="flex flex-col items-end">
+                                  <p className="text-xs font-black text-white italic tracking-tight">{new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-tighter">{new Date(l.timestamp).toLocaleDateString()}</p>
+                               </div>
+                            </td>
+                          </tr>
+                        )))}
+                      </tbody>
+                    </table>
+                 </div>
+                 <div className="p-4 bg-black/20 border-t border-white/5 text-center">
+                   <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.4em] italic">Encrypted Intelligence Uplink Active</p>
+                 </div>
+               </div>
+            </div>
+         )}
+
+         {view === 'profile' && (
           <div className="max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="flex flex-col lg:flex-row gap-8">
               {/* Profile Card */}
@@ -479,12 +631,28 @@ export default function Dashboard() {
                 <div className="bg-[#14213D] border border-white/5 rounded-[2rem] p-8 text-center relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-purple-500 to-indigo-600"></div>
                   <div className="relative inline-block mb-6 pt-4">
-                    <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
-                      {userName?.[0].toUpperCase() || "A"}
+                    <div className="w-32 h-32 rounded-full overflow-hidden bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
+                      {profilePic ? (
+                        <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-5xl font-black italic">
+                          {userName?.[0].toUpperCase() || "A"}
+                        </span>
+                      )}
                     </div>
-                    <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
+                    <button 
+                      onClick={() => fileInputRef.current.click()}
+                      className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg z-20"
+                    >
                       <Camera size={18} className="text-white" />
                     </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleProfilePicUpdate} 
+                      className="hidden" 
+                      accept="image/*"
+                    />
                   </div>
                   <div className="space-y-1 mb-8">
                     <h3 className="text-2xl font-black text-white italic tracking-tight">{userName}</h3>

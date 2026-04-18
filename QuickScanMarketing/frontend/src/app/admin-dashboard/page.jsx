@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   Users, QrCode, Globe, Shield, Activity, Zap, BarChart3, 
   Menu, X, Search, Trash2, ShieldCheck, Home, Terminal, LogOut,
   ShoppingBag, MapPin, CreditCard, CheckCircle2, Clock, XCircle,
-  Smartphone, Database, ArrowRight, User, Inbox, Check
+  Smartphone, Database, ArrowRight, User, Inbox, Check, Share2, Download, Truck
 } from "lucide-react";
 import toast from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   const [qrList, setQrList] = useState([]);
   const [orders, setOrders] = useState([]);
   const [telemetry, setTelemetry] = useState([]);
+  const [leads, setLeads] = useState([]);
   const [metrics, setMetrics] = useState({ userCount: 0, qrCount: 0, scanCount: 0, orderCount: 0, pendingRequests: 0 });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,6 +33,10 @@ export default function AdminDashboard() {
   const [view, setView] = useState("overview"); 
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', password: '' });
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const prevMetrics = useRef(null);
+  const prevLeads = useRef([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -40,26 +45,29 @@ export default function AdminDashboard() {
       const headers = { 'Authorization': `Bearer ${token}` };
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
 
-      const [usersRes, qrRes, orderRes, metricsRes, telemetryRes] = await Promise.all([
+       const [usersRes, qrRes, orderRes, metricsRes, telemetryRes, leadsRes] = await Promise.all([
         fetch(`${apiUrl}/admin/users`, { headers }),
         fetch(`${apiUrl}/admin/qrs`, { headers }),
         fetch(`${apiUrl}/admin/orders`, { headers }),
         fetch(`${apiUrl}/admin/metrics`, { headers }),
-        fetch(`${apiUrl}/admin/telemetry`, { headers })
+        fetch(`${apiUrl}/admin/telemetry`, { headers }),
+        fetch(`${apiUrl}/qr/all-leads`, { headers })
       ]);
 
-      const [uData, qData, oData, mData, tData] = await Promise.all([
+      const [uData, qData, oData, mData, tData, lData] = await Promise.all([
         usersRes.json(),
         qrRes.json(),
         orderRes.json(),
         metricsRes.json(),
-        telemetryRes.json()
+        telemetryRes.json(),
+        leadsRes.json()
       ]);
 
       setUsers(uData || []);
       setQrList(qData || []);
       setOrders(oData || []);
       setTelemetry(tData || []);
+      setLeads(lData || []);
       setMetrics(mData || { userCount: 0, qrCount: 0, scanCount: 0, orderCount: 0, pendingRequests: 0 });
     } catch (err) {
       console.error("Error fetching admin data:", err);
@@ -69,17 +77,90 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const addNotification = useCallback((message, type = 'scan') => {
+    const id = Date.now();
+    const newNotif = { id, message, type, timestamp: new Date(), read: false };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50));
+    
+    toast.custom((t) => (
+      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-[#0B132B] border border-indigo-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.5)] rounded-2xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 relative overflow-hidden group`}>
+        <div className="absolute inset-0 bg-linear-to-r from-indigo-600/5 to-transparent pointer-events-none"></div>
+        <div className="flex-1 w-0 p-5">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 pt-0.5">
+              <div className="h-12 w-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 shadow-inner group-hover:scale-110 transition-transform">
+                <Zap className="h-6 w-6 text-indigo-400 group-hover:text-indigo-300" />
+              </div>
+            </div>
+            <div className="ml-5 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></div>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] italic">Network Intelligence</p>
+              </div>
+              <p className="text-[12px] font-black text-white leading-relaxed uppercase tracking-tight line-clamp-2">{message}</p>
+              <p className="mt-2 text-[8px] font-bold text-slate-500 uppercase tracking-widest">{new Date().toLocaleTimeString()} • ROOT COMMAND SIGNAL</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col border-l border-white/5 bg-white/[0.02]">
+          <button onClick={() => toast.dismiss(t.id)} className="flex-1 px-4 flex items-center justify-center text-slate-500 hover:text-white transition-all">
+            <Check size={18} />
+          </button>
+        </div>
+      </div>
+    ), { duration: 6000, position: 'top-right' });
+
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3');
+      audio.volume = 0.2;
+      audio.play().catch(() => {});
+    } catch(e) {}
+  }, []);
+
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (!userData) { router.push('/login'); return; }
     const user = JSON.parse(userData);
     if (user.role !== 'admin') {
-      toast.error("Access denied. Admin only.");
+      toast.error("PLEASE LOGIN AS USER");
       router.push('/dashboard');
       return;
     }
     fetchData();
-  }, [router, fetchData]);
+
+    // Setup real-time monitoring interval (5s)
+    const monitorInterval = setInterval(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
+        
+        const [mRes, lRes] = await Promise.all([
+          fetch(`${apiUrl}/admin/metrics`, { headers }),
+          fetch(`${apiUrl}/qr/all-leads`, { headers })
+        ]);
+        const mData = await mRes.json();
+        const lData = await lRes.json();
+
+        if (prevMetrics.current && mData.scanCount > prevMetrics.current.scanCount) {
+          const diff = mData.scanCount - prevMetrics.current.scanCount;
+          if (lData.length > prevLeads.current.length) {
+            const newLead = lData[0];
+            addNotification(`New Intelligence Captured: ${newLead.name} (${newLead.phoneNumber})`);
+          } else {
+            addNotification(`${diff} New Network Signal${diff > 1 ? 's' : ''} Redirected Successfully`);
+          }
+        }
+
+        prevMetrics.current = mData;
+        prevLeads.current = lData;
+        setMetrics(mData);
+        setLeads(lData);
+      } catch (err) { console.error("Monitor failed:", err); }
+    }, 5000);
+
+    return () => clearInterval(monitorInterval);
+  }, [router, fetchData, addNotification]);
 
   const deleteUser = async (id, role, email) => {
     if (email === 'rahulvarma100000@gmail.com') return;
@@ -140,6 +221,26 @@ export default function AdminDashboard() {
     finally { setIsCreatingAdmin(false); }
   };
 
+  const exportLeads = () => {
+    if (leads.length === 0) { toast.error("No intelligence to export."); return; }
+    const headers = ["Name", "Email", "Phone", "Origin Node URL", "Captured Date"];
+    const rows = leads.map(l => [
+        `"${l.name || 'Anonymous'}"`,
+        `"${l.email || 'N/A'}"`,
+        `"${l.phoneNumber || 'N/A'}"`,
+        `"${l.targetUrl || 'N/A'}"`,
+        `"${new Date(l.createdAt).toLocaleString()}"`
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `VISION_INTEL_FEED_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success("Intelligence Feed Exported Successfully.");
+  };
+
   const stats = [
     { name: 'TOTAL NODES', value: metrics.qrCount, icon: QrCode, color: 'text-orange-400', sub: 'ACTIVE' },
     { name: 'ACTIVE USERS', value: metrics.userCount, icon: Users, color: 'text-blue-400', sub: 'AGENTS' },
@@ -162,6 +263,7 @@ export default function AdminDashboard() {
               { id: 'overview', icon: BarChart3, label: 'HUB' },
               { id: 'users', icon: Users, label: 'AGENTS' },
               { id: 'qrs', icon: QrCode, label: 'NODES' },
+              { id: 'intel', icon: Inbox, label: 'DATA FEED' },
               { id: 'telemetry', icon: Database, label: 'SIGNAL' },
               { id: 'orders', icon: ShoppingBag, label: 'LOGISTICS' }
             ].map(v => (
@@ -347,6 +449,68 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               </div>
+            )}
+
+            {view === 'intel' && (
+               <div className="space-y-6">
+                 <div className="flex justify-between items-end">
+                    <div>
+                        <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white">Aggregated Intel</h2>
+                        <p className="text-[10px] font-bold text-slate-500 tracking-[0.2em] mt-1 uppercase">Centralized Signal Collection</p>
+                    </div>
+                    <button 
+                        onClick={exportLeads}
+                        className="flex items-center gap-3 px-6 py-3 bg-white text-black rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-emerald-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-lg"
+                    >
+                        <Download size={14} /> Export Intel (Excel)
+                    </button>
+                 </div>
+
+                 <div className="bg-[#14213D] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl">
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-black/20 text-[10px] uppercase text-slate-500 font-black tracking-widest border-b border-white/5">
+                        <tr><th className="px-8 py-5">Personnel Profile</th><th className="px-8 py-5 text-center">Contact Ref</th><th className="px-8 py-5">Terminal Node</th><th className="px-8 py-5 text-right">Captured</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {leads.map((l, i) => (
+                          <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="px-8 py-6">
+                               <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-black text-sm">
+                                     {l.name?.[0]?.toUpperCase() || 'A'}
+                                  </div>
+                                  <div>
+                                     <p className="text-sm font-black text-white italic capitalize">{l.name}</p>
+                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight lowercase">{l.email}</p>
+                                  </div>
+                               </div>
+                            </td>
+                            <td className="px-8 py-6 text-center">
+                               <span className="text-[11px] font-black text-amber-400 italic px-3 py-1 bg-amber-500/5 rounded-lg border border-amber-500/10 font-mono">{l.phoneNumber}</span>
+                            </td>
+                            <td className="px-8 py-6">
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[200px]">{l.targetUrl}</p>
+                               <div className="flex items-center gap-1.5 mt-1 opacity-40">
+                                  <Share2 size={10} />
+                                  <span className="text-[8px] font-black uppercase">Redirect Active</span>
+                               </div>
+                            </td>
+                            <td className="px-8 py-6 text-right">
+                               <div className="flex items-center justify-end gap-2 text-slate-500">
+                                  <span className="text-[10px] font-black uppercase italic tracking-tighter">
+                                     {new Date(l.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <Clock size={12} className="opacity-40" />
+                               </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                 </div>
+               </div>
+               </div>
             )}
 
             {view === 'orders' && (
