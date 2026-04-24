@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import TemplateRenderer from "@/components/Templates/TemplateRenderer";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
+import Chatbot from "@/components/Chatbot";
+
 
 export default function Generate() {
   const router = useRouter();
@@ -679,7 +681,9 @@ export default function Generate() {
         </main>
       </div>
 
-    </div>
+        <Chatbot role="user" />
+      </div>
     </UserAuthWrapper>
+
   );
 }

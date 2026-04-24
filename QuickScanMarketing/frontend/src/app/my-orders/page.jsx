@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
+import Chatbot from "@/components/Chatbot";
+
 
 const STATUS_CONFIG = {
   Pending:    { color: "text-orange-400",   bg: "bg-orange-500/10",   border: "border-orange-500/20",   icon: Clock,         label: "Pending",     step: 1 },
@@ -378,6 +380,7 @@ export default function MyOrdersPage() {
         )}
 
       </main>
+      <Chatbot role="user" />
     </div>
     </UserAuthWrapper>
   );

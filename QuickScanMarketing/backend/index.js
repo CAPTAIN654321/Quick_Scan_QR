@@ -6,6 +6,7 @@ const AdminRouter = require('./router/adminRouter');
 
 const TemplateRouter = require('./router/templateRouter');
 const OrderRouter = require('./router/orderRouter');
+const DesignRouter = require('./router/designRouter');
 const cors = require('cors');
 require('./connection')
 const app = express();
@@ -29,6 +30,7 @@ app.use('/qr', QRRouter);
 app.use('/admin', AdminRouter);
 app.use('/template', TemplateRouter);
 app.use('/order', OrderRouter);
+app.use('/design', DesignRouter);
 
 //route or endpoint
 app.get('/',(req,res) =>{

@@ -59,10 +59,15 @@ router.get("/all", async (req, res) => {
 });
 router.put("/update/:id", async (req, res) => {
     try {
-        const { link, customConfig } = req.body;
+        const updateFields = {};
+        if (req.body.link !== undefined) {
+            updateFields.link = req.body.link.trim();
+        }
+        if (req.body.customConfig !== undefined) updateFields.customConfig = req.body.customConfig;
+
         const updatedQR = await QR.findByIdAndUpdate(
             req.params.id,
-            { link, customConfig },
+            { $set: updateFields },
             { new: true } 
         );
 
@@ -125,10 +130,10 @@ router.get("/scan/:id", async (req,res)=>{
 
                     <div id="form-container" class="space-y-4">
                         <div class="relative">
-                            <input id="userName" type="text" placeholder="Full Name (Required)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 uppercase font-bold tracking-widest">
+                            <input id="userName" type="text" placeholder="Full Name (Required)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 font-bold tracking-widest">
                         </div>
                         <div class="relative">
-                            <input id="userEmail" type="email" placeholder="Email Address (Optional)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 lowercase font-bold tracking-widest">
+                            <input id="userEmail" type="email" placeholder="Email Address (Optional)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-white placeholder:text-slate-600 font-bold tracking-widest">
                         </div>
                         <div class="relative">
                             <input id="userPhone" type="tel" placeholder="Phone Number (Required)" class="w-full bg-[#0B132B]/50 border border-white/10 rounded-xl px-5 py-3 text-xs focus:outline-none focus:border-amber-500/50 transition-all text-white placeholder:text-slate-600 font-bold tracking-widest">
@@ -277,107 +282,105 @@ router.post("/track/:id", async (req, res) => {
         const qr = await QR.findById(req.params.id);
         if (!qr) { return res.status(404).json({ error: "QR not found" }); }
 
-        const { lat, lng, name, email, phone } = req.body;
-        const userAgent = req.headers['user-agent'] || "Unknown";
-        const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || "0.0.0.0").replace('::ffff:', '');
-        
-        // Simple User Agent Parsing
-        let browser = "Other";
-        if (userAgent.includes("Chrome")) browser = "Chrome";
-        else if (userAgent.includes("Firefox")) browser = "Firefox";
-        else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) browser = "Safari";
-        else if (userAgent.includes("Edge")) browser = "Edge";
-
-        let device = "Desktop";
-        if (userAgent.includes("Mobi")) device = "Mobile";
-        if (userAgent.includes("Tablet")) device = "Tablet";
-
-        let os = "Desktop";
-        if (userAgent.includes("Android")) os = "Android";
-        else if (userAgent.includes("iPhone") || userAgent.includes("iPad")) os = "iOS";
-        else if (userAgent.includes("Windows")) os = "Windows";
-        else if (userAgent.includes("Mac OS")) os = "macOS";
-        else if (userAgent.includes("Linux")) os = "Linux";
-
-        // Hybrid AI/Rules Risk Scoring
-        let riskScore = 0;
-        let isFraud = false;
-        let fraudReason = "";
-
-        // 1. Bot check (+40 risk)
-        const botPattern = /bot|crawler|spider|headless|inspect|curl|wget/i;
-        if (botPattern.test(userAgent)) {
-            riskScore += 40;
-            fraudReason = "Bot/Crawler Pattern; ";
-        }
-
-        // 2. Velocity check (Same IP scanning too fast) (+60 risk)
-        const recentScans = qr.scans.filter(s => 
-            s.ip === ip && 
-            (Date.now() - new Date(s.timestamp).getTime()) < 60000
-        );
-        if (recentScans.length >= 3) {
-            riskScore += 60;
-            fraudReason += "High Velocity Link Spanning; ";
-        }
-
-        if (riskScore >= 50) isFraud = true;
-
-        let locationString = "Permission Denied / Unknown";
-
-        if (lat !== null && lng !== null && lat !== undefined && lng !== undefined) {
-            try {
-                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
-                const geoData = await geoRes.json();
-                if (geoData && geoData.city) {
-                    locationString = `${geoData.city}, ${geoData.principalSubdivision || geoData.countryName}`;
-                } else if (geoData && geoData.locality) {
-                    locationString = `${geoData.locality}, ${geoData.countryName}`;
-                } else {
-                    locationString = `GPS [${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}]`;
-                }
-            } catch (err) {
-                locationString = `GPS [${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}]`;
-            }
-        }
-
-        qr.scanCount = (qr.scanCount || 0) + 1;
-        qr.scans.push({
-            timestamp: new Date(),
-            location: locationString,
-            ip,
-            userAgent,
-            browser,
-            os,
-            device,
-            name: name || "Anonymous",
-            email: email || "Not provided",
-            phoneNumber: phone || "Not Shared",
-            isFraud,
-            fraudReason,
-            riskScore
-        });
-
-        await qr.save();
-
-        // Save as Lead for Data Feed
-        if (name !== "Anonymous" || email !== "Not provided" || phone !== "Not provided") {
-            const newLead = new Lead({
-                name: name || "Anonymous",
-                email: email || "unknown@system.com",
-                phoneNumber: phone || "Not provided",
-                qrId: qr._id,
-                targetUrl: qr.link
-            });
-            await newLead.save().catch(e => console.error("Lead save err:", e));
-        }
-
+        // Respond immediately to speed up redirection for the user
         res.json({ 
             link: qr.link,
             useTemplate: !!qr.template,
             templateId: qr.template,
             customConfig: qr.customConfig
         });
+
+        // Perform all heavy processing, geolocation, and DB saves in the background
+        const processBackgroundTasks = async () => {
+            try {
+                const { lat, lng, name, email, phone } = req.body;
+                const userAgent = req.headers['user-agent'] || "Unknown";
+                const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || "0.0.0.0").replace('::ffff:', '');
+                
+                // Simple User Agent Parsing
+                let browser = "Other";
+                if (userAgent.includes("Chrome")) browser = "Chrome";
+                else if (userAgent.includes("Firefox")) browser = "Firefox";
+                else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) browser = "Safari";
+                else if (userAgent.includes("Edge")) browser = "Edge";
+
+                let device = "Desktop";
+                if (userAgent.includes("Mobi")) device = "Mobile";
+                if (userAgent.includes("Tablet")) device = "Tablet";
+
+                let os = "Other";
+                if (userAgent.includes("Android")) os = "Android";
+                else if (userAgent.includes("iPhone") || userAgent.includes("iPad")) os = "iOS";
+                else if (userAgent.includes("Windows")) os = "Windows";
+                else if (userAgent.includes("Mac OS")) os = "macOS";
+                else if (userAgent.includes("Linux")) os = "Linux";
+
+                // Hybrid AI/Rules Risk Scoring
+                let riskScore = 0;
+                let isFraud = false;
+                let fraudReason = "";
+
+                const botPattern = /bot|crawler|spider|headless|inspect|curl|wget/i;
+                if (botPattern.test(userAgent)) { riskScore += 40; fraudReason = "Bot/Crawler Pattern; "; }
+
+                const recentScans = (qr.scans || []).filter(s => 
+                    s.ip === ip && (Date.now() - new Date(s.timestamp).getTime()) < 60000
+                );
+                if (recentScans.length >= 3) { riskScore += 60; fraudReason += "High Velocity Link Spanning; "; }
+                if (riskScore >= 50) isFraud = true;
+
+                let locationString = "Permission Denied / Unknown";
+                if (lat !== null && lng !== null && lat !== undefined && lng !== undefined) {
+                    try {
+                        const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+                        const geoData = await geoRes.json();
+                        if (geoData && geoData.city) {
+                            locationString = `${geoData.city}, ${geoData.principalSubdivision || geoData.countryName}`;
+                        } else if (geoData && geoData.locality) {
+                            locationString = `${geoData.locality}, ${geoData.countryName}`;
+                        } else {
+                            locationString = `GPS [${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}]`;
+                        }
+                    } catch (err) {
+                        locationString = `GPS [${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}]`;
+                    }
+                }
+
+                // Update QR Document
+                await QR.findByIdAndUpdate(qr._id, {
+                    $inc: { scanCount: 1 },
+                    $push: {
+                        scans: {
+                            timestamp: new Date(),
+                            location: locationString,
+                            ip, userAgent, browser, os, device,
+                            name: name || "Anonymous",
+                            email: email || "Not provided",
+                            phoneNumber: phone || "Not Shared",
+                            isFraud, fraudReason, riskScore
+                        }
+                    }
+                });
+
+                // Save as Lead for Data Feed
+                if (name && name !== "Anonymous") {
+                    const newLead = new Lead({
+                        name: name,
+                        email: email || "unknown@system.com",
+                        phoneNumber: phone || "Not provided",
+                        qrId: qr._id,
+                        targetUrl: qr.link
+                    });
+                    await newLead.save().catch(e => console.error("Lead save err:", e));
+                }
+            } catch (err) {
+                console.error("Background tracking task failed:", err);
+            }
+        };
+
+        // Fire and forget
+        processBackgroundTasks();
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

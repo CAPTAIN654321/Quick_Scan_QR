@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { 
-  User, Mail, Lock, Shield, Save, ArrowLeft, 
-  Terminal, Camera, CheckCircle2, AlertCircle, Eye, EyeOff
+  Terminal, Camera, CheckCircle2, AlertCircle, Eye, EyeOff, ArrowLeft, Shield, User, Lock, Save
 } from "lucide-react";
+import { useRef } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
+import Chatbot from "@/components/Chatbot";
+
 
 export default function ProfilePage() {
   const [user, setUser] = useState(null);
@@ -22,6 +24,8 @@ export default function ProfilePage() {
     newPassword: "",
     confirmPassword: ""
   });
+  const [profilePic, setProfilePic] = useState(null);
+  const fileInputRef = useRef(null);
 
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
@@ -34,6 +38,7 @@ export default function ProfilePage() {
     }
     const parsedUser = JSON.parse(userData);
     setUser(parsedUser);
+    setProfilePic(parsedUser.profilePic || null);
     setFormData(prev => ({
       ...prev,
       name: parsedUser.name || "",
@@ -94,6 +99,42 @@ export default function ProfilePage() {
     }
   };
 
+  const handleProfilePicUpdate = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Profile image exceeds 2MB limit.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result;
+      setProfilePic(base64String);
+
+      try {
+        const token = localStorage.getItem('token');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+        const res = await fetch(`${apiUrl}/user/update-me`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ profilePic: base64String })
+        });
+        if (res.ok) {
+          const updatedUserResponse = await res.json();
+          const fullUser = { ...user, ...updatedUserResponse };
+          localStorage.setItem('user', JSON.stringify(fullUser));
+          setUser(fullUser);
+          toast.success("Profile imagery synchronized.");
+        }
+      } catch (err) {
+        toast.error("Imagery sync failed.");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (loading) return (
     <div className="h-screen bg-[#0B132B] flex items-center justify-center">
       <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -127,12 +168,26 @@ export default function ProfilePage() {
                 <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                 
                 <div className="relative inline-block mb-6">
-                  <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
-                    {user.name?.[0].toUpperCase() || "A"}
+                  <div className="w-32 h-32 rounded-full overflow-hidden bg-linear-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black italic shadow-[0_0_30px_rgba(79,70,229,0.3)] border-4 border-[#14213D] group-hover:scale-105 transition-transform">
+                    {profilePic ? (
+                      <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      user.name?.[0].toUpperCase() || "A"
+                    )}
                   </div>
-                  <button className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg">
+                  <button 
+                    onClick={() => fileInputRef.current.click()}
+                    className="absolute bottom-0 right-0 p-2.5 bg-indigo-600 rounded-xl border-4 border-[#14213D] hover:bg-indigo-500 transition-colors shadow-lg z-10"
+                  >
                     <Camera size={18} className="text-white" />
                   </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleProfilePicUpdate} 
+                    className="hidden" 
+                    accept="image/*"
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -279,7 +334,9 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+        <Chatbot role="user" />
       </div>
     </UserAuthWrapper>
+
   );
 }
