@@ -1,25 +1,35 @@
 "use client";
+// Design Sync Manifest: v1.0.4
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
 import Link from "next/link";
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
 import { 
-  Menu, X, Home, Zap, Layers, Download, Link as LinkIcon, Plus, Trash2, Move, ShoppingCart, Type
+  Menu, X, Home, Zap, Layers, Download, Link as LinkIcon, Plus, Trash2, Move, ShoppingCart, Type, Edit2, Save, CheckCircle, Activity
 } from "lucide-react";
+import Chatbot from "@/components/Chatbot";
+
 
 export default function CreateStandee() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedQrId = searchParams.get('qrId');
+  const designId = searchParams.get('designId');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [qrList, setQrList] = useState([]);
   
   // Standee State
   const [addedQrs, setAddedQrs] = useState([
-    { id: 1, qrId: null, x: 50, y: 65, size: 45 } // Percentage size
+    { id: 1, qrId: null, x: 50, y: 65, size: 45, fgColor: '#000000' } // Percentage size
   ]);
   const [activeQrId, setActiveQrId] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [newLink, setNewLink] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isSavingDesign, setIsSavingDesign] = useState(false);
   
   const [title, setTitle] = useState("SCAN & CONNECT");
   const [subtitle, setSubtitle] = useState("SECURE DIGITAL NETWORK ACCESS");
@@ -31,6 +41,7 @@ export default function CreateStandee() {
   // Text Nodes State
   const [addedTexts, setAddedTexts] = useState([]);
   const [activeTextId, setActiveTextId] = useState(null);
+  const [logo, setLogo] = useState(null); // Custom logo base64 or URL
 
   const formats = [
     { id: 'standee', name: 'Vertical Standee', prevClass: 'w-[280px] sm:w-[320px] h-[550px] flex-col rounded-3xl', printClass: 'print:w-[100mm] print:h-[200mm]' },
@@ -71,7 +82,9 @@ export default function CreateStandee() {
           setQrList(data);
           if (data.length > 0 && addedQrs.length > 0 && !addedQrs[0].qrId) {
               const updated = [...addedQrs];
-              updated[0].qrId = data[0]._id;
+              // Use preselected ID if valid and exists in data, otherwise use first in list
+              const exists = data.some(q => q._id === preselectedQrId);
+              updated[0].qrId = exists ? preselectedQrId : data[0]._id;
               setAddedQrs(updated);
           }
         }
@@ -79,26 +92,53 @@ export default function CreateStandee() {
       .catch((err) => console.error("Error fetching QR codes:", err));
   }, [apiUrl, addedQrs]);
 
+  const fetchDesignDetails = useCallback(async () => {
+    if (!designId) return;
+    try {
+      const res = await fetch(`${apiUrl}/design/getbyid/${designId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+           setTitle(data.title || "SCAN & CONNECT");
+           setSubtitle(data.subtitle || "SECURE DIGITAL NETWORK ACCESS");
+           setFooter(data.footer || "");
+           setTextColors(data.textColors || { title: '#ffffff', subtitle: '#64748b' });
+           setTheme(data.theme || themes[0]);
+           setFormat(data.format || formats[0]);
+           setAddedQrs(data.addedQrs || []);
+           setAddedTexts(data.addedTexts || []);
+           setLogo(data.logo || null);
+        }
+      }
+    } catch (err) { console.error("Error fetching design details:", err); }
+  }, [apiUrl, designId]);
+
   useEffect(() => {
     fetchQR();
-  }, [fetchQR]);
+    if (designId) fetchDesignDetails();
+  }, [fetchQR, fetchDesignDetails, designId]);
 
   const addQr = () => {
-    setAddedQrs([...addedQrs, { 
+    setAddedQrs(prev => [...prev, { 
       id: Date.now(), 
       qrId: qrList[0]?._id || null, 
       x: 50, 
       y: 50, 
-      size: 35 // Percentage of width
+      size: 35,
+      fgColor: '#000000'
     }]);
   };
 
   const removeQr = (id) => {
-    setAddedQrs(addedQrs.filter(q => q.id !== id));
+    setAddedQrs(prev => prev.filter(q => q.id !== id));
   };
 
   const updateQr = (id, updates) => {
-    setAddedQrs(addedQrs.map(q => q.id === id ? { ...q, ...updates } : q));
+    setAddedQrs(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+  };
+
+  const updateText = (id, updates) => {
+    setAddedTexts(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
   const handleMouseDown = (e, target) => {
@@ -114,8 +154,44 @@ export default function CreateStandee() {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (!isDragging || !dragTarget.current || !canvasRef.current) return;
+      
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      
+      const updates = { 
+        x: Math.max(0, Math.min(100, x)), 
+        y: Math.max(0, Math.min(100, y)) 
+      };
+
+      if (dragTarget.current.type === 'qr') {
+        updateQr(dragTarget.current.id, updates);
+      } else {
+        updateText(dragTarget.current.id, updates);
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+      dragTarget.current = null;
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging]);
+
   const addText = () => {
-    setAddedTexts([...addedTexts, {
+    setAddedTexts(prev => [...prev, {
       id: Date.now(),
       content: "NEW LAYER",
       x: 50,
@@ -127,36 +203,9 @@ export default function CreateStandee() {
   };
 
   const removeText = (id) => {
-    setAddedTexts(addedTexts.filter(t => t.id !== id));
+    setAddedTexts(prev => prev.filter(t => t.id !== id));
   };
 
-  const updateText = (id, updates) => {
-    setAddedTexts(addedTexts.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging || !dragTarget.current || !canvasRef.current) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
-    const updates = { 
-      x: Math.max(0, Math.min(100, x)), 
-      y: Math.max(0, Math.min(100, y)) 
-    };
-
-    if (dragTarget.current.type === 'qr') {
-      updateQr(dragTarget.current.id, updates);
-    } else {
-      updateText(dragTarget.current.id, updates);
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    dragTarget.current = null;
-  };
 
   const [previewScale, setPreviewScale] = useState(1);
   useEffect(() => {
@@ -183,10 +232,93 @@ export default function CreateStandee() {
       theme, 
       format, 
       addedQrs,
-      addedTexts
+      addedTexts,
+      logo
     };
     localStorage.setItem('pendingOrder', JSON.stringify(orderData));
     router.push('/order');
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogo(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreateStandee = async () => {
+    setIsSavingDesign(true);
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      const designData = {
+        user: userData._id,
+        title,
+        subtitle,
+        footer,
+        textColors,
+        theme,
+        format,
+        addedQrs,
+        addedTexts,
+        logo
+      };
+      
+      const endpoint = designId ? `${apiUrl}/design/update/${designId}` : `${apiUrl}/design/add`;
+      const method = designId ? 'PUT' : 'POST';
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(designData)
+      });
+      
+      if (res.ok) {
+        toast.success(designId ? "Standee updated successfully" : "Standee saved to dashboard", {
+          icon: '🖼️',
+          style: {
+            borderRadius: '10px',
+            background: '#14213D',
+            color: '#fff',
+            border: '1px solid rgba(6, 182, 212, 0.2)'
+          }
+        });
+        setTimeout(() => router.push('/dashboard'), 1500);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save standee");
+    } finally {
+      setIsSavingDesign(false);
+    }
+  };
+  
+  const handleUpdate = async (id) => {
+    if (!newLink) return;
+    setIsUpdating(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiUrl}/qr/update/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ link: newLink })
+      });
+      if (res.ok) {
+        setQrList(prev => prev.map(q => q._id === id ? { ...q, link: newLink } : q));
+        setEditId(null);
+        setNewLink("");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleDownload = () => {
@@ -195,11 +327,7 @@ export default function CreateStandee() {
 
   return (
     <UserAuthWrapper>
-      <div 
-        className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-cyan-500/30 font-sans"
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-      >
+      <div className="flex h-screen overflow-hidden bg-[#0B132B] text-white selection:bg-cyan-500/30 font-sans">
       <Toaster position="top-right" />
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -296,6 +424,27 @@ export default function CreateStandee() {
                       className="w-full bg-[#0B132B] border border-white/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-cyan-500/50 outline-none"
                    />
                 </div>
+
+                {/* Brand Logo Upload */}
+                <div className="space-y-1.5">
+                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={10} className="text-slate-400" /> Identity Logo
+                   </label>
+                   <div className="flex gap-2">
+                      <label className="flex-1 cursor-pointer">
+                         <div className="w-full bg-[#0B132B] border border-dashed border-white/10 rounded-lg py-2 text-center text-[9px] font-black hover:border-cyan-500/50 transition-colors">
+                            {logo ? "CHANGE LOGO" : "UPLOAD LOGO"}
+                         </div>
+                         <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                      </label>
+                      {logo && (
+                        <button onClick={() => setLogo(null)} className="p-2 rounded-lg bg-white/5 text-rose-500 hover:bg-rose-500/10 transition-colors">
+                           <Trash2 size={12} />
+                        </button>
+                      )}
+                   </div>
+                </div>
+
                 {/* Format */}
                 <div className="grid grid-cols-2 gap-2">
                    {formats.map(f => (
@@ -314,12 +463,20 @@ export default function CreateStandee() {
           <div>
              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Matrix Clusters</h3>
-                <button 
-                  onClick={addQr}
-                  className="p-1 px-3 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
-                >
-                  <Plus size={10} /> ADD QR
-                </button>
+                <div className="flex gap-2">
+                   <button 
+                     onClick={addText}
+                     className="p-1 px-3 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
+                   >
+                     <Plus size={10} /> ADD TEXT
+                   </button>
+                   <button 
+                     onClick={addQr}
+                     className="p-1 px-3 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
+                   >
+                     <Plus size={10} /> ADD QR
+                   </button>
+                </div>
              </div>
 
              <div className="space-y-3">
@@ -337,59 +494,242 @@ export default function CreateStandee() {
                     </div>
 
                     <div className="space-y-3" onClick={e => e.stopPropagation()}>
-                       <select 
-                          className="w-full bg-black/40 border border-white/5 rounded-lg px-2 py-1.5 text-[10px] outline-none"
-                          value={item.qrId || ''}
-                          onChange={(e) => updateQr(item.id, { qrId: e.target.value })}
-                       >
-                          {qrList.map(qr => (
-                            <option key={qr._id} value={qr._id}>{qr.link ? qr.link.substring(0, 20) : "No Link"}... ({qr._id.slice(-4)})</option>
-                          ))}
-                       </select>
+                        <div className="flex gap-2">
+                           <select 
+                              className="flex-1 bg-black/40 border border-white/5 rounded-lg px-2 py-1.5 text-[10px] outline-none"
+                              value={item.qrId || ''}
+                              onChange={(e) => updateQr(item.id, { qrId: e.target.value })}
+                           >
+                              {qrList.map(qr => (
+                                <option key={qr._id} value={qr._id}>{qr.link ? qr.link.substring(0, 15) : "No Link"}... ({qr._id.slice(-4)})</option>
+                              ))}
+                           </select>
+                           {item.qrId && (
+                             <button 
+                               onClick={() => {
+                                 const qr = qrList.find(q => q._id === item.qrId);
+                                 setEditId(qr?._id);
+                                 setNewLink(qr?.link || "");
+                               }}
+                               className="p-1.5 rounded-lg bg-white/5 text-slate-500 hover:text-cyan-400 transition-colors"
+                             >
+                               <Edit2 size={12} />
+                             </button>
+                           )}
+                        </div>
 
-                       <div className="space-y-2">
-                          <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase">
-                             <span>X Position</span>
-                             <span>{Math.round(item.x)}%</span>
+                        {editId && qrList.find(q => q._id === item.qrId)?._id === editId && (
+                          <div className="p-3 bg-[#0B132B]/80 border border-cyan-500/40 rounded-xl mt-4 animate-in zoom-in-95 duration-200">
+                             <p className="text-[7px] font-black uppercase text-cyan-400 mb-2 leading-none flex items-center gap-1.5">
+                                <Activity size={8} /> MODIFY NEXUS DESTINATION
+                             </p>
+                             <div className="flex gap-2">
+                                <input 
+                                  type="text" 
+                                  value={newLink}
+                                  onChange={(e) => setNewLink(e.target.value)}
+                                  className="flex-1 bg-black/60 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold text-white outline-none focus:border-cyan-500/50 placeholder:text-slate-700"
+                                  placeholder="https://..."
+                                />
+                                <div className="flex gap-1.5">
+                                   <button 
+                                     onClick={() => handleUpdate(editId)}
+                                     disabled={isUpdating}
+                                     className="w-8 h-8 flex items-center justify-center rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-900/40 disabled:opacity-50"
+                                     title="Save Changes"
+                                   >
+                                     {isUpdating ? <CheckCircle size={14} className="animate-pulse" /> : <Save size={14} />}
+                                   </button>
+                                   <button 
+                                     onClick={() => setEditId(null)}
+                                     className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 text-slate-500 hover:text-white transition-all border border-white/5"
+                                     title="Discard"
+                                   >
+                                     <X size={14} />
+                                   </button>
+                                </div>
+                             </div>
                           </div>
-                          <input 
-                            type="range" min="0" max="100" 
-                            value={item.x} 
-                            onChange={(e) => updateQr(item.id, { x: parseInt(e.target.value) })}
-                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                          />
-                       </div>
+                        )}
 
-                       <div className="space-y-2">
-                          <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase">
-                             <span>Y Position</span>
-                             <span>{Math.round(item.y)}%</span>
-                          </div>
-                          <input 
-                            type="range" min="0" max="100" 
-                            value={item.y} 
-                            onChange={(e) => updateQr(item.id, { y: parseInt(e.target.value) })}
-                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                          />
-                       </div>
+                        <div className="pt-4 space-y-4 border-t border-white/5 mt-4">
+                           <div className="space-y-2">
+                              <div className="flex justify-between items-center mb-1">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">X POSITION</span>
+                                 <div className="flex items-center gap-2">
+                                    <input 
+                                       type="number" 
+                                       value={Math.round(item.x)} 
+                                       onChange={(e) => updateQr(item.id, { x: Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) })}
+                                       className="w-10 bg-black/40 border-0 rounded text-[9px] font-black text-cyan-400 text-center py-0.5 outline-none"
+                                    />
+                                    <span className="text-[8px] font-bold text-slate-600">%</span>
+                                 </div>
+                              </div>
+                              <input 
+                                type="range" min="0" max="100" 
+                                value={item.x} 
+                                onChange={(e) => updateQr(item.id, { x: parseInt(e.target.value) })}
+                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+                              />
+                           </div>
 
-                       <div className="space-y-2">
-                          <div className="flex justify-between text-[8px] font-bold text-slate-500 uppercase">
-                             <span>Rel Size</span>
-                             <span>{item.size}%</span>
-                          </div>
-                          <input 
-                            type="range" min="10" max="90" 
-                            value={item.size} 
-                            onChange={(e) => updateQr(item.id, { size: parseInt(e.target.value) })}
-                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                          />
-                       </div>
+                           <div className="space-y-2">
+                              <div className="flex justify-between items-center mb-1">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Y POSITION</span>
+                                 <div className="flex items-center gap-2">
+                                    <input 
+                                       type="number" 
+                                       value={Math.round(item.y)} 
+                                       onChange={(e) => updateQr(item.id, { y: Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) })}
+                                       className="w-10 bg-black/40 border-0 rounded text-[9px] font-black text-cyan-400 text-center py-0.5 outline-none"
+                                    />
+                                    <span className="text-[8px] font-bold text-slate-600">%</span>
+                                 </div>
+                              </div>
+                              <input 
+                                type="range" min="0" max="100" 
+                                value={item.y} 
+                                onChange={(e) => updateQr(item.id, { y: parseInt(e.target.value) })}
+                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+                              />
+                           </div>
+                        </div>
+
+                           <div className="space-y-2">
+                              <div className="flex justify-between items-center mb-1">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">REL SIZE</span>
+                                 <div className="flex items-center gap-2">
+                                    <input 
+                                       type="number" 
+                                       value={Math.round(item.size)} 
+                                       onChange={(e) => updateQr(item.id, { size: Math.max(10, Math.min(90, parseInt(e.target.value) || 10)) })}
+                                       className="w-10 bg-black/40 border-0 rounded text-[9px] font-black text-cyan-400 text-center py-0.5 outline-none"
+                                    />
+                                    <span className="text-[8px] font-bold text-slate-600">%</span>
+                                 </div>
+                              </div>
+                              <input 
+                                type="range" min="10" max="90" 
+                                value={item.size} 
+                                onChange={(e) => updateQr(item.id, { size: parseInt(e.target.value) })}
+                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all"
+                              />
+                           </div>
+
+                           <div className="space-y-1.5 pt-2">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">MATRIX TINT</p>
+                              <div className="flex items-center gap-2">
+                                 <input 
+                                    type="color" 
+                                    value={item.fgColor || '#000000'} 
+                                    onChange={(e) => updateQr(item.id, { fgColor: e.target.value })} 
+                                    className="w-8 h-8 bg-transparent border-0 cursor-pointer p-0 shadow-lg shadow-black/40" 
+                                 />
+                                 <span className="text-[9px] font-mono text-cyan-400 uppercase font-black">{item.fgColor || '#000000'}</span>
+                              </div>
+                           </div>
                     </div>
                   </div>
                 ))}
              </div>
           </div>
+
+          {/* Custom Text Clusters */}
+          {addedTexts.length > 0 && (
+            <div className="pt-4 border-t border-white/5 pb-2">
+               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <Type size={12} className="text-orange-400" /> Typographic Layers
+               </h3>
+               <div className="space-y-3">
+                  {addedTexts.map((txt, index) => (
+                     <div 
+                       key={txt.id} 
+                       className={`p-3 rounded-xl border transition-all ${activeTextId === txt.id ? 'bg-white/10 border-orange-500/30' : 'bg-white/5 border-white/5'}`}
+                       onClick={() => setActiveTextId(txt.id)}
+                     >
+                        <div className="flex items-center justify-between mb-3">
+                           <span className="text-[10px] font-black text-white italic text-orange-400 tracking-tighter">TEXT LAYER #{index + 1}</span>
+                           <button onClick={(e) => { e.stopPropagation(); removeText(txt.id); }} className="text-slate-600 hover:text-rose-500 transition-colors">
+                              <Trash2 size={12} />
+                           </button>
+                        </div>
+                         <div className="space-y-3 pt-4 border-t border-white/5" onClick={e => e.stopPropagation()}>
+                            <div className="space-y-2">
+                               <div className="flex justify-between items-center mb-1">
+                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">X POSITION</span>
+                                  <div className="flex items-center gap-2">
+                                     <input 
+                                        type="number" 
+                                        value={Math.round(txt.x)} 
+                                        onChange={(e) => updateText(txt.id, { x: Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) })}
+                                        className="w-10 bg-black/40 border-0 rounded text-[9px] font-black text-orange-400 text-center py-0.5 outline-none"
+                                     />
+                                     <span className="text-[8px] font-bold text-slate-600">%</span>
+                                  </div>
+                               </div>
+                               <input 
+                                 type="range" min="0" max="100" 
+                                 value={txt.x} 
+                                 onChange={(e) => updateText(txt.id, { x: parseInt(e.target.value) })}
+                                 className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-orange-500 hover:accent-orange-400 transition-all"
+                               />
+                            </div>
+
+                            <div className="space-y-2">
+                               <div className="flex justify-between items-center mb-1">
+                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Y POSITION</span>
+                                  <div className="flex items-center gap-2">
+                                     <input 
+                                        type="number" 
+                                        value={Math.round(txt.y)} 
+                                        onChange={(e) => updateText(txt.id, { y: Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) })}
+                                        className="w-10 bg-black/40 border-0 rounded text-[9px] font-black text-orange-400 text-center py-0.5 outline-none"
+                                     />
+                                     <span className="text-[8px] font-bold text-slate-600">%</span>
+                                  </div>
+                               </div>
+                               <input 
+                                 type="range" min="0" max="100" 
+                                 value={txt.y} 
+                                 onChange={(e) => updateText(txt.id, { y: parseInt(e.target.value) })}
+                                 className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-orange-500 hover:accent-orange-400 transition-all"
+                               />
+                            </div>
+
+                            <div className="space-y-1.5">
+                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">LAYER CONTENT</p>
+                               <input 
+                                  type="text" 
+                                  value={txt.content}
+                                  onChange={(e) => updateText(txt.id, { content: e.target.value })}
+                                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[10px] font-bold text-white outline-none focus:border-orange-500/50"
+                                  placeholder="Layer Content..."
+                               />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                  <div className="flex justify-between items-center mb-1">
+                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">SCALE</span>
+                                     <span className="text-[9px] font-black text-orange-400">{txt.size}px</span>
+                                  </div>
+                                  <input type="range" min="8" max="150" value={txt.size} onChange={(e) => updateText(txt.id, { size: parseInt(e.target.value) })} className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+                               </div>
+                               <div className="space-y-1.5">
+                                  <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">TINT</p>
+                                  <div className="flex items-center gap-2">
+                                     <input type="color" value={txt.color} onChange={(e) => updateText(txt.id, { color: e.target.value })} className="w-8 h-8 bg-transparent border-0 cursor-pointer p-0 shadow-lg shadow-black/40" />
+                                     <span className="text-[8px] font-mono text-slate-600 uppercase tracking-tighter">{txt.color}</span>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                     </div>
+                  ))}
+               </div>
+            </div>
+          )}
 
           <div className="pt-4 pb-10 space-y-3">
             <button 
@@ -399,10 +739,18 @@ export default function CreateStandee() {
               <Download size={18} /> EXPORT PDF
             </button>
             <button 
-              onClick={handleOrder}
-              className="w-full bg-linear-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-black italic tracking-widest uppercase py-4 rounded-xl flex justify-center items-center gap-2 shadow-[0_10px_30px_rgba(234,88,12,0.3)] transition-all transform hover:-translate-y-1 active:scale-95"
+              onClick={handleCreateStandee}
+              disabled={isSavingDesign}
+              className="w-full bg-linear-to-r from-emerald-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 text-white font-black italic tracking-widest uppercase py-4 rounded-xl flex justify-center items-center gap-2 shadow-[0_10px_30px_rgba(16,185,129,0.3)] transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50"
             >
-              <ShoppingCart size={18} /> ORDER STANDEE
+              {isSavingDesign ? <CheckCircle size={18} className="animate-pulse" /> : <Zap size={18} />} 
+              {isSavingDesign ? "INITIALIZING..." : "CREATE MY STANDEE"}
+            </button>
+            <button 
+              onClick={handleOrder}
+              className="w-full bg-linear-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-black italic tracking-widest uppercase py-4 rounded-xl flex justify-center items-center gap-2 shadow-[0_10px_30px_rgba(234,88,12,0.3)] transition-all transform hover:-translate-y-1 active:scale-95 translate-y-2 opacity-80 scale-95"
+            >
+              <ShoppingCart size={18} /> ORDER PHYSICAL PRINT
             </button>
           </div>
         </div>
@@ -447,14 +795,18 @@ export default function CreateStandee() {
             >
                 <div 
                   ref={canvasRef}
-                  className={`relative bg-[#0A1020] border-2 border-white/5 overflow-hidden shadow-2xl flex flex-col transition-all duration-500 ${format.prevClass} ${format.printClass} print:border-black print:bg-white ${theme.shadow} print:shadow-none print:transform-none`}
+                  className={`relative bg-[#0A1020] border-2 border-white/5 overflow-hidden shadow-2xl flex flex-col transition-all duration-500 ${format.prevClass} ${format.printClass} print:border-black print:bg-white ${theme.shadow} print:shadow-none print:transform-none ${isDragging ? 'select-none' : ''}`}
                 >
                    {/* Accent Header */}
                        <div className={`w-full ${format.id === 'banner' ? 'h-full w-24' : 'h-32'} bg-linear-to-br ${theme.from} ${theme.to} relative overflow-hidden shrink-0 print:border-r print:border-black`}>
                           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
                           <div className="absolute inset-0 flex items-center justify-center">
-                             <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
-                                <span className="text-3xl font-black italic">Q</span>
+                             <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center overflow-hidden">
+                                {logo ? (
+                                  <img src={logo} className="w-full h-full object-contain" alt="Logo" />
+                                ) : (
+                                  <span className="text-3xl font-black italic">Q</span>
+                                )}
                              </div>
                           </div>
                        </div>
@@ -482,8 +834,12 @@ export default function CreateStandee() {
                         </p>
 
                         <div className={`${format.id === 'banner' ? 'mt-8 flex items-center gap-4' : 'mt-auto pb-4 text-center'}`}>
-                           <div className={`w-8 h-8 rounded-lg bg-linear-to-br ${theme.from} ${theme.to} flex items-center justify-center`}>
-                              <span className="text-white font-black text-xs italic">Q</span>
+                           <div className={`w-8 h-8 rounded-lg bg-linear-to-br ${theme.from} ${theme.to} flex items-center justify-center overflow-hidden`}>
+                              {logo ? (
+                                <img src={logo} className="w-full h-full object-contain p-1" alt="Logo" />
+                              ) : (
+                                <span className="text-white font-black text-xs italic">Q</span>
+                              )}
                            </div>
                            <p className="text-[10px] font-black tracking-[0.4em] uppercase opacity-40 whitespace-nowrap" style={{ color: textColors.subtitle }}>{footer}</p>
                         </div>
@@ -515,6 +871,7 @@ export default function CreateStandee() {
                                 <QRCode 
                                     value={`${apiUrl}/qr/scan/${qr.qrId}`} 
                                     size={256} 
+                                    fgColor={qr.fgColor || '#000000'}
                                     style={{ height: "auto", maxWidth: "100%", width: "100%" }} 
                                     viewBox="0 0 256 256"
                                 />
@@ -568,7 +925,9 @@ export default function CreateStandee() {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
       `}</style>
+      <Chatbot role="user" />
     </div>
     </UserAuthWrapper>
+
   );
 }

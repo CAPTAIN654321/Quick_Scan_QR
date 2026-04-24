@@ -7,10 +7,11 @@ import {
   Users, QrCode, Globe, Shield, Activity, Zap, BarChart3, 
   Menu, X, Search, Trash2, ShieldCheck, Home, Terminal, LogOut,
   ShoppingBag, MapPin, CreditCard, CheckCircle2, Clock, XCircle,
-  Smartphone, Database, ArrowRight, User, Inbox, Check, Share2, Download, Truck
+  Smartphone, Database, ArrowRight, User, Inbox, Check, Share2, Download, Truck, Edit2
 } from "lucide-react";
 import toast from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
+import Chatbot from "@/components/Chatbot";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -35,6 +36,8 @@ export default function AdminDashboard() {
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [newLink, setNewLink] = useState("");
   const prevMetrics = useRef(null);
   const prevLeads = useRef([]);
 
@@ -220,6 +223,36 @@ export default function AdminDashboard() {
     } catch (err) { toast.error("Initialization failed"); }
     finally { setIsCreatingAdmin(false); }
   };
+  const handleUpdateQR = async (id) => {
+    if (!newLink.trim()) {
+      toast.error("Protocol violation: Target URL cannot be empty.");
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+      const res = await fetch(`${apiUrl}/qr/update/${id}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ link: newLink }),
+      });
+      if (res.ok) {
+        setEditId(null);
+        setNewLink("");
+        fetchData();
+        toast.success("Intelligence Link Synchronized successfully.");
+      } else {
+        const error = await res.json();
+        toast.error(error.message || "Link update synchronization failed.");
+      }
+    } catch (err) { 
+      console.error("Error updating QR code:", err);
+      toast.error("Core nexus connection failure during update.");
+    }
+  };
 
   const exportLeads = () => {
     if (leads.length === 0) { toast.error("No intelligence to export."); return; }
@@ -392,7 +425,22 @@ export default function AdminDashboard() {
                                   <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400"><QrCode size={18} /></div>
                                   <div>
                                      <p className="text-sm font-black text-white italic uppercase">{qr.customConfig?.title?.text || 'Dynamic Node'}</p>
-                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">{qr.link}</p>
+                                     {editId === qr._id ? (
+                                        <div className="flex items-center gap-2 mt-1">
+                                           <input 
+                                             type="text" 
+                                             value={newLink} 
+                                             onChange={(e) => setNewLink(e.target.value)}
+                                             className="bg-black/40 border border-white/10 rounded px-2 py-1 text-[9px] font-black text-white outline-none focus:border-indigo-500/50 w-40"
+                                             placeholder="New Link"
+                                             autoFocus
+                                           />
+                                           <button onClick={() => handleUpdateQR(qr._id)} className="p-1 rounded bg-indigo-600 text-white hover:bg-indigo-500"><Check size={10} /></button>
+                                           <button onClick={() => setEditId(null)} className="p-1 rounded bg-white/5 text-slate-500 hover:text-white"><X size={10} /></button>
+                                        </div>
+                                     ) : (
+                                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">{qr.link}</p>
+                                     )}
                                   </div>
                                </div>
                             </td>
@@ -404,7 +452,16 @@ export default function AdminDashboard() {
                                <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest">Active</span>
                             </td>
                             <td className="px-8 py-6 text-right">
-                               <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white transition-all"><Search size={14} /></button>
+                               <div className="flex items-center justify-end gap-2">
+                                     <button 
+                                       onClick={() => { setEditId(qr._id); setNewLink(qr.link); }}
+                                       className="p-2 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-indigo-400 transition-all"
+                                       title="Edit Link"
+                                     >
+                                        <Edit2 size={14} />
+                                     </button>
+                                  <button className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white transition-all"><Search size={14} /></button>
+                               </div>
                             </td>
                           </tr>
                         ))}
@@ -481,8 +538,8 @@ export default function AdminDashboard() {
                                      {l.name?.[0]?.toUpperCase() || 'A'}
                                   </div>
                                   <div>
-                                     <p className="text-sm font-black text-white italic capitalize">{l.name}</p>
-                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight lowercase">{l.email}</p>
+                                     <p className="text-sm font-black text-white italic">{l.name}</p>
+                                     <p className="text-[10px] text-slate-500 font-bold tracking-tight">{l.email}</p>
                                   </div>
                                </div>
                             </td>
@@ -584,6 +641,7 @@ export default function AdminDashboard() {
             )}
           </main>
         </div>
+        <Chatbot role="admin" />
       </div>
     </UserAuthWrapper>
   );

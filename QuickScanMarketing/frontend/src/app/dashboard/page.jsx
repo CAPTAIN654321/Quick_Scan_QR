@@ -6,15 +6,19 @@ import Link from "next/link";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
 import { 
   Menu, Bell, User, Edit2, Check, X, Globe, Shield, Activity, Zap, 
-  Terminal, Layers, BarChart3, MapPin, Clock, Home, Trash2, 
-  Smartphone, Monitor, LogOut, ShoppingBag, BellOff, Volume2, 
-  CheckCircle2, ArrowRight, ChevronLeft, Camera, Eye, EyeOff, Lock, Save, Inbox, Share2, Download
+  Terminal, Layers, BarChart3, Clock, Home, Trash2, 
+  LogOut, ShoppingBag, BellOff, Volume2, Search, Plus,
+  CheckCircle2, ArrowRight, Camera, Eye, EyeOff, Lock, Save, Inbox, Share2, Download
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Chatbot from "@/components/Chatbot";
+
 
 export default function Dashboard() {
   const [view, setView] = useState('overview'); // Added view state
   const [qrList, setQrList] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [designs, setDesigns] = useState([]);
   const [user, setUser] = useState(null);
   
   // Profile Update State
@@ -54,6 +58,16 @@ export default function Dashboard() {
   const fileInputRef = useRef(null);
   const [profilePic, setProfilePic] = useState(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
+
+  const fetchDesigns = useCallback(async () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      if (!userData) return;
+      const res = await fetch(`${apiUrl}/design/getbyuser/${userData._id}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setDesigns(data);
+    } catch (err) { console.error("Error fetching designs:", err); }
+  }, [apiUrl]);
 
   const fetchQR = useCallback(async () => {
     try {
@@ -153,7 +167,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchQR();
-    const interval = setInterval(fetchQR, 5000);
+    fetchDesigns();
+    const interval = setInterval(() => {
+      fetchQR();
+      fetchDesigns();
+    }, 5000);
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsedUser = JSON.parse(userData);
@@ -168,7 +186,7 @@ export default function Dashboard() {
       }));
     }
     return () => clearInterval(interval);
-  }, [fetchQR]);
+  }, [fetchQR, fetchDesigns]);
 
   const handleQuickGenerate = async () => {
     if (!quickLink.trim()) return;
@@ -188,6 +206,10 @@ export default function Dashboard() {
   };
 
   const handleUpdate = async (id) => {
+    if (!newLink.trim()) {
+      toast.error("Protocol violation: Target URL cannot be empty.");
+      return;
+    }
     try {
       const res = await fetch(`${apiUrl}/qr/update/${id}`, {
         method: "PUT",
@@ -198,8 +220,15 @@ export default function Dashboard() {
         setEditId(null);
         setNewLink("");
         fetchQR();
+        toast.success("Intelligence Link Synchronized successfully.");
+      } else {
+        const error = await res.json();
+        toast.error(error.message || "Link update synchronization failed.");
       }
-    } catch (err) { console.error("Error updating QR code:", err); }
+    } catch (err) { 
+      console.error("Error updating QR code:", err);
+      toast.error("Core nexus connection failure during update.");
+    }
   };
 
   const handleProfilePicUpdate = async (e) => {
@@ -348,10 +377,11 @@ export default function Dashboard() {
             {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'intel' ? 'text-white' : 'text-slate-500'}`}>Data Feed</span>}
           </button>
 
-          <Link href="/standee" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
-            <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-cyan-500/20 transition-colors border border-white/5"><Layers size={18} className="text-cyan-400" /></div>
-            {!isSidebarCollapsed && <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">Create Standee</span>}
-          </Link>
+          <button onClick={() => setView('designs')} className={`w-full flex items-center gap-4 py-3.5 rounded-xl transition-all group relative overflow-hidden ${view === 'designs' ? 'bg-[#1C2541] border border-white/5 shadow-lg' : 'hover:bg-white/5 border border-transparent'} ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
+            {view === 'designs' && <div className="absolute inset-y-0 left-0 w-1 bg-linear-to-b from-cyan-400 to-blue-600 rounded-r-md"></div>}
+            <Layers size={22} className={view === 'designs' ? 'text-cyan-400 fill-cyan-400/30' : 'text-slate-500'} />
+            {!isSidebarCollapsed && <span className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${view === 'designs' ? 'text-white' : 'text-slate-500'}`}>My Standies</span>}
+          </button>
 
           <Link href="/my-orders" className={`flex items-center gap-4 py-3.5 rounded-xl hover:bg-white/5 transition-all group ${isSidebarCollapsed ? 'px-0 justify-center' : 'px-3'}`}>
             <div className="bg-[#1C2541] p-1.5 rounded-lg shrink-0 group-hover:bg-indigo-500/20 transition-colors border border-white/5"><ShoppingBag size={18} className="text-indigo-400" /></div>
@@ -520,24 +550,219 @@ export default function Dashboard() {
             </section>
 
             <section>
-              <div className="mb-6 flex justify-between items-end"><div><p className="text-[10px] font-bold text-blue-400 tracking-[0.2em] mb-1">QR REGISTRY</p><h2 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter">Active Nodes</h2></div></div>
+              <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                  <p className="text-[10px] font-bold text-blue-400 tracking-[0.2em] mb-1">QR REGISTRY</p>
+                  <h2 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter">Active Nodes</h2>
+                </div>
+                <div className="relative w-full md:w-80 group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                    <Search size={16} />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="SEARCH NODE ID (EX: A7B2C1)..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-[#14213D] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-[10px] font-black uppercase tracking-widest text-white placeholder:text-slate-700 outline-none focus:border-blue-500/30 focus:shadow-[0_0_20px_rgba(59,130,246,0.1)] transition-all"
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-600 hover:text-white transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {qrList.length === 0 ? (<div className="col-span-full py-20 bg-white/5 border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center space-y-4"><Zap size={32} className="text-slate-700" /><p className="text-[11px] font-black uppercase tracking-widest text-slate-500">No active nodes detected in the registry</p></div>) : 
-                qrList.map((qr) => (
-                  <div key={qr._id} className="bg-[#1F2B4B] border border-white/5 rounded-xl p-5 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all group flex flex-col relative overflow-hidden">
+                {qrList.length === 0 ? (
+                  <div className="col-span-full py-20 bg-white/5 border border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center space-y-4">
+                    <Zap size={32} className="text-slate-700" />
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">No active nodes detected in the registry</p>
+                  </div>
+                ) : (
+                  (Array.isArray(qrList) ? qrList.filter(qr => 
+                    qr._id.slice(-6).toUpperCase().includes(searchTerm.toUpperCase()) || 
+                    qr.link.toLowerCase().includes(searchTerm.toLowerCase())
+                  ) : []).length === 0 ? (
+                    <div className="col-span-full py-20 text-center opacity-30">
+                       <Search size={40} className="mx-auto mb-4" />
+                       <p className="text-[10px] font-black uppercase tracking-widest">No nodes match the search criteria</p>
+                    </div>
+                  ) : (
+                    (Array.isArray(qrList) ? qrList.filter(qr => 
+                      qr._id.slice(-6).toUpperCase().includes(searchTerm.toUpperCase()) || 
+                      qr.link.toLowerCase().includes(searchTerm.toLowerCase())
+                    ) : []).map((qr) => (
+                      <div key={qr._id} className="bg-[#1F2B4B] border border-white/5 rounded-xl p-5 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all group flex flex-col relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 flex flex-col items-end gap-2"><div className="flex items-center gap-1.5"><span className="text-[7px] font-black text-emerald-400 uppercase tracking-[0.2em] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Active</span><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span></div></div>
                     <div className="flex justify-center mb-4 mt-2"><div className="bg-white p-3 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] group-hover:scale-105"><QRCode value={qr.suggestedScanUrl || `${apiUrl}/qr/scan/${qr._id}`} size={140} style={{ height: "auto", maxWidth: "100%", width: "100%" }} /></div></div>
-                    <div className="flex-1 text-center space-y-2 mb-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">NODE ID: {qr._id.slice(-6).toUpperCase()}</p><p className="text-sm font-bold text-slate-200 truncate px-2">{qr.link}</p></div>
+                    <div className="flex-1 text-center space-y-2 mb-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">NODE ID: {qr._id.slice(-6).toUpperCase()}</p>
+                      {editId === qr._id ? (
+                        <div className="px-2 space-y-2">
+                           <input 
+                             type="text" 
+                             value={newLink} 
+                             onChange={(e) => setNewLink(e.target.value)}
+                             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500/50"
+                             placeholder="New Link URL"
+                             autoFocus
+                           />
+                           <div className="flex gap-2">
+                             <button onClick={() => handleUpdate(qr._id)} className="flex-1 py-1 rounded bg-blue-600 text-[8px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all">Update</button>
+                             <button onClick={() => setEditId(null)} className="flex-1 py-1 rounded bg-white/5 text-[8px] font-black uppercase tracking-widest hover:bg-white/10 transition-all text-slate-400">Cancel</button>
+                           </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-bold text-slate-200 truncate px-2">{qr.link}</p>
+                      )}
+                    </div>
                     <div className="flex gap-2 border-t border-white/5 pt-4">
                        <button onClick={() => { setSelectedNode(qr); setIsAnalyticsOpen(true); }} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/5 hover:text-purple-400 transition-all"><BarChart3 size={14} /> ANALYTICS</button>
-                       <button onClick={() => handleDelete(qr._id)} className="p-2 rounded-lg text-slate-500 hover:text-rose-400 transition-all"><Trash2 size={16} /></button>
+                       <Link href={`/standee?qrId=${qr._id}`} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-cyan-700/20 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-600 hover:text-white transition-all"><Layers size={14} /> STANDEE</Link>
+                       <button onClick={() => { setEditId(qr._id); setNewLink(qr.link); }} className="p-2 rounded-lg text-slate-500 hover:text-blue-400 transition-all" title="Edit Link"><Edit2 size={16} /></button>
+                      <button onClick={() => handleDelete(qr._id)} className="p-2 rounded-lg text-slate-500 hover:text-rose-400 transition-all"><Trash2 size={16} /></button>
                     </div>
                   </div>
-                ))}
+                ))
+              )
+            )}
               </div>
             </section>
           </>
         )}
+
+          {view === 'designs' && (
+            <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-10">
+               <div className="flex justify-between items-end">
+                  <div>
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white">Visual Matrix Hub</h2>
+                    <p className="text-[10px] font-bold text-cyan-400 tracking-[0.3em] mt-1 flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> SAVED STANDEE CONFIGURATIONS
+                    </p>
+                  </div>
+                  <Link href="/standee" className="px-6 py-3 bg-white text-black rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-cyan-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-lg flex items-center gap-2">
+                     <Plus size={14} /> NEW DESIGN
+                  </Link>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                 {designs.length === 0 ? (
+                    <div className="col-span-full py-32 bg-white/5 border border-dashed border-white/5 rounded-[3rem] flex flex-col items-center justify-center space-y-6">
+                       <Layers size={48} className="text-slate-700 mx-auto" />
+                       <div className="text-center">
+                          <p className="text-[12px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">No Standee Matrices Saved</p>
+                          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Configure your first physical asset in the design lab.</p>
+                       </div>
+                    </div>
+                 ) : (
+                    designs.map((design) => (
+                      <div key={design._id} className="bg-[#14213D] border border-white/5 rounded-[2.5rem] overflow-hidden group hover:border-cyan-500/30 transition-all shadow-xl flex flex-col">
+                         <div className="h-48 bg-black/40 relative overflow-hidden flex items-center justify-center p-6 border-b border-white/5 group-hover:bg-black/60 transition-all">
+                            <div className={`w-32 h-40 bg-linear-to-br transition-all duration-500 shadow-2xl relative flex flex-col items-center p-3 rounded-sm ${design.theme?.from} ${design.theme?.to}`}>
+                               <div className="w-6 h-6 rounded-full bg-white/20 mb-2"></div>
+                               <div className="w-full h-0.5 bg-white/10 mb-1"></div>
+                               <div className="w-1/2 h-0.5 bg-white/10 mb-4"></div>
+                               <div className="w-10 h-10 bg-white rounded-sm mt-auto"></div>
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all bg-black/20 backdrop-blur-[2px]">
+                               <Link href={`/standee?designId=${design._id}`} className="bg-white text-black px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-500 hover:text-white transition-all transform hover:scale-105">View Full Specs</Link>
+                            </div>
+                         </div>
+                         <div className="p-6 space-y-4 flex-1 flex flex-col">
+                            <div>
+                               <div className="flex items-center justify-between mb-1">
+                                  <h3 className="text-lg font-black italic uppercase tracking-tighter text-white truncate max-w-[150px]">{design.title}</h3>
+                                  <span className="text-[8px] font-black uppercase tracking-widest bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">{design.format?.name || 'Standard'}</span>
+                               </div>
+                               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate">{design.subtitle || 'NO SUBTITLE DEFINED'}</p>
+                            </div>
+
+                            <div className="space-y-3 pt-2 border-t border-white/5">
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                  <Zap size={10} className="text-orange-400" /> Linked Nodes
+                               </p>
+                               <div className="space-y-2">
+                                  {design.addedQrs && design.addedQrs.map((node, idx) => {
+                                      // Find the full QR object from qrList if possible
+                                      const fullQr = qrList.find(q => q._id === node.qrId);
+                                      if (!fullQr) return null;
+                                      
+                                      return (
+                                        <div key={idx} className="bg-white/5 rounded-xl p-3 border border-white/5 flex flex-col gap-2">
+                                           <div className="flex items-center justify-between">
+                                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">NODE #{fullQr._id.slice(-6).toUpperCase()}</span>
+                                              <Link href={`/dashboard?view=overview&edit=${fullQr._id}`} className="text-[8px] font-black text-cyan-400 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-1">
+                                                 <Edit2 size={10} /> Sync Target
+                                              </Link>
+                                           </div>
+                                           {editId === fullQr._id ? (
+                                              <div className="space-y-2 pt-1 animate-in slide-in-from-top-1 duration-200">
+                                                 <input 
+                                                   type="text" 
+                                                   value={newLink} 
+                                                   onChange={(e) => setNewLink(e.target.value)}
+                                                   placeholder="Target URL..."
+                                                   className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-white outline-none focus:border-cyan-500/50"
+                                                 />
+                                                 <div className="flex gap-2">
+                                                    <button onClick={() => handleUpdate(fullQr._id)} className="flex-1 py-1 rounded bg-cyan-600 text-[8px] font-black uppercase tracking-widest hover:bg-cyan-500 transition-all">Synchronize</button>
+                                                    <button onClick={() => setEditId(null)} className="flex-1 py-1 rounded bg-white/5 text-[8px] font-black uppercase tracking-widest hover:bg-white/10 transition-all text-slate-500">Cancel</button>
+                                                 </div>
+                                              </div>
+                                           ) : (
+                                              <p className="text-[10px] font-bold text-slate-200 truncate pr-10 relative">
+                                                 {fullQr.link}
+                                                 <button 
+                                                   onClick={() => { setEditId(fullQr._id); setNewLink(fullQr.link); }}
+                                                   className="absolute right-0 top-0 text-slate-600 hover:text-cyan-400 transition-colors"
+                                                 >
+                                                   <Edit2 size={12} />
+                                                 </button>
+                                              </p>
+                                           )}
+                                        </div>
+                                      );
+                                  })}
+                               </div>
+                            </div>
+
+                            <div className="pt-4 mt-auto border-t border-white/5 flex items-center justify-between">
+                               <div className="flex items-center gap-1">
+                                  <Clock size={10} className="text-slate-600" />
+                                  <span className="text-[8px] font-black text-slate-600 uppercase tracking-tighter">SAVED {new Date(design.createdAt).toLocaleDateString()}</span>
+                               </div>
+                               <div className="flex items-center gap-3">
+                                  <button 
+                                    onClick={async () => {
+                                      if(confirm("Permanently purge this design matrix?")) {
+                                        const res = await fetch(`${apiUrl}/design/delete/${design._id}`, { method: 'DELETE' });
+                                        if(res.ok) {
+                                          toast.success("Design Matrix Purged");
+                                          fetchDesigns();
+                                        }
+                                      }
+                                    }}
+                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all shadow-inner"
+                                  >
+                                     <Trash2 size={12} />
+                                  </button>
+                                  <button className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 border border-orange-500/20 hover:bg-orange-500 hover:text-white transition-all shadow-inner group">
+                                     <Download size={12} className="group-hover:-translate-y-0.5 transition-transform" />
+                                  </button>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                    ))
+                 )}
+               </div>
+            </div>
+          )}
 
          {view === 'intel' && (
             <div className="max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-8">
@@ -586,8 +811,8 @@ export default function Dashboard() {
                                      {l.name?.[0]?.toUpperCase() || 'A'}
                                   </div>
                                   <div>
-                                     <p className="text-sm font-black text-white italic capitalize">{l.name}</p>
-                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight lowercase">{l.email}</p>
+                                     <p className="text-sm font-black text-white italic">{l.name}</p>
+                                     <p className="text-[10px] text-slate-500 font-bold tracking-tight">{l.email}</p>
                                   </div>
                                </div>
                             </td>
@@ -878,7 +1103,8 @@ export default function Dashboard() {
       })()
     )}
 
-    </div></div>
+        <Chatbot role="user" />
+      </div></div>
     </UserAuthWrapper>
   );
 }
