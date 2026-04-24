@@ -10,7 +10,7 @@ const mySchema = new Schema({
     address: {
         fullName: String,
         phone: String,
-        street: String,
+        street: String, 
         city: String,
         state: String,
         zipCode: String
