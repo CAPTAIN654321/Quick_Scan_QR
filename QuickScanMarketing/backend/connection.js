@@ -1,13 +1,12 @@
 const mongoose = require('mongoose');
-const dns = require('dns');
-dns.setServers(['1.1.1.1', '8.8.8.8']);
-
 require('dotenv').config();
 
-const url = process.env.MONGODB_URI || 'mongodb+srv://rahulvarma100000_db_user:1234@cluster0.8idkkrw.mongodb.net/?appName=Cluster0';
+const rawUrl = process.env.MONGODB_URI || 'mongodb+srv://rahulvarma100000_db_user:1234@cluster0.8idkkrw.mongodb.net/test';
+const url = rawUrl.split('?')[0]; 
 
 mongoose.connect(url, {
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    serverSelectionTimeoutMS: 30000,
+    tls: true,
 })
 .then((result) => {
     console.log('--- DATABASE STATUS: CONNECTED ---');
