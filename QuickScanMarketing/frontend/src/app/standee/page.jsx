@@ -661,22 +661,53 @@ export default function CreateStandee() {
 
           <div>
              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Matrix Clusters</h3>
+                <h3 className="text-[10px] font-black text-orange-400 uppercase tracking-[0.2em]">Cluster Labels</h3>
+                <button 
+                  onClick={addText}
+                  className="p-1 px-3 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
+                >
+                  <Plus size={10} /> ADD LABEL
+                </button>
+             </div>
+
+             {addedTexts.length > 0 && (
+                <div className="space-y-3 mb-6">
+                   {addedTexts.map((txt, index) => (
+                      <div 
+                        key={txt.id} 
+                        className={`p-3 rounded-xl border transition-all ${activeTextId === txt.id ? 'bg-white/10 border-orange-500/30' : 'bg-white/5 border-white/5'}`}
+                        onClick={() => setActiveTextId(txt.id)}
+                      >
+                         <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black italic text-orange-400">LABEL #{index + 1}</span>
+                            <button onClick={(e) => { e.stopPropagation(); removeText(txt.id); }} className="text-slate-600 hover:text-rose-500">
+                               <Trash2 size={12} />
+                            </button>
+                         </div>
+                         <input 
+                            type="text" 
+                            value={txt.content}
+                            onChange={(e) => updateText(txt.id, { content: e.target.value })}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] font-bold text-white outline-none focus:border-orange-500/50"
+                            placeholder="Enter Text..."
+                         />
+                      </div>
+                   ))}
+                </div>
+             )}
+
+             <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Matrix Clusters</h3>
                 <div className="flex gap-2">
-                   <button 
-                     onClick={addText}
-                     className="p-1 px-3 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
-                   >
-                     <Plus size={10} /> ADD TEXT
-                   </button>
                    <button 
                      onClick={addQr}
                      className="p-1 px-3 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all text-[8px] font-black flex items-center gap-1"
-                   >
-                     <Plus size={10} /> ADD QR
-                   </button>
-                </div>
-             </div>
+                    >
+                      <Plus size={10} /> ADD QR
+                    </button>
+                 </div>
+              </div>
 
              <div className="space-y-3">
                 {addedQrs.map((item, index) => (
