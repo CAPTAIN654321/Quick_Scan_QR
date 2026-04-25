@@ -135,8 +135,8 @@ export default function Chatbot({ role = "user" }) {
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                 <div className={`max-w-[85%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${msg.role === 'user' ? 'bg-purple-600/20 border-purple-500/30 text-purple-400' : 'bg-indigo-600/20 border-indigo-500/30 text-indigo-400'}`}>
-                    {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border overflow-hidden ${msg.role === 'user' ? 'bg-purple-600/20 border-purple-500/30 text-purple-400' : 'bg-transparent border-white/10'}`}>
+                    {msg.role === 'user' ? <User size={14} /> : <img src="/cutie-logo.png" alt="Bot" className="w-full h-full object-cover" />}
                   </div>
                   <div className={`p-4 rounded-2xl text-[12px] font-medium leading-relaxed ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-none shadow-lg shadow-purple-900/20' : 'bg-[#1F2B4B] text-slate-200 border border-white/5 rounded-tl-none shadow-lg'}`}>
                     {msg.content}

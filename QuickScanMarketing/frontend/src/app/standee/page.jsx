@@ -8,7 +8,7 @@ import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
 import UserAuthWrapper from "@/components/UserAuthWrapper";
 import { 
-  Menu, X, Home, Zap, Layers, Download, Link as LinkIcon, Plus, Trash2, Move, ShoppingCart, Type, Edit2, Save, CheckCircle, Activity
+  Menu, X, Home, Zap, Layers, Download, Link as LinkIcon, Plus, Trash2, Move, ShoppingCart, Type, Edit2, Save, CheckCircle, Activity, Sparkles
 } from "lucide-react";
 import Chatbot from "@/components/Chatbot";
 
@@ -36,12 +36,13 @@ export default function CreateStandee() {
   const [footer, setFooter] = useState("Quick Scan Marketing Ecosystem");
   const [textColors, setTextColors] = useState({ title: '#ffffff', subtitle: '#64748b' });
   const [theme, setTheme] = useState({ name: 'Neon Blue', from: 'from-blue-600', to: 'to-cyan-400', shadow: 'shadow-blue-500/50' });
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://127.0.0.1:5000");
 
   // Text Nodes State
   const [addedTexts, setAddedTexts] = useState([]);
   const [activeTextId, setActiveTextId] = useState(null);
   const [logo, setLogo] = useState(null); // Custom logo base64 or URL
+  const [customBg, setCustomBg] = useState(null); // Custom solid background color
 
   const formats = [
     { id: 'standee', name: 'Vertical Standee', prevClass: 'w-[280px] sm:w-[320px] h-[550px] flex-col rounded-3xl', printClass: 'print:w-[100mm] print:h-[200mm]' },
@@ -67,7 +68,8 @@ export default function CreateStandee() {
     { name: 'Electric', from: 'from-yellow-400', to: 'to-orange-500', shadow: 'shadow-yellow-400/50' },
     { name: 'Berry Blast', from: 'from-fuchsia-600', to: 'to-pink-400', shadow: 'shadow-fuchsia-500/50' },
     { name: 'Royal Velvet', from: 'from-purple-800', to: 'to-indigo-900', shadow: 'shadow-purple-900/50' },
-    { name: 'Misty Rose', from: 'from-rose-100', to: 'to-teal-50', shadow: 'shadow-rose-100/50' }
+    { name: 'Misty Rose', from: 'from-rose-100', to: 'to-teal-50', shadow: 'shadow-rose-100/50' },
+    { name: 'Prism Matrix', from: 'from-indigo-600 via-purple-600', to: 'to-pink-500', shadow: 'shadow-purple-500/50' }
   ];
 
   const canvasRef = useRef(null);
@@ -162,16 +164,28 @@ export default function CreateStandee() {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       
+      const isQr = dragTarget.current.type === 'qr';
+      const activeItem = isQr 
+        ? addedQrs.find(q => q.id === dragTarget.current.id) 
+        : addedTexts.find(t => t.id === dragTarget.current.id);
+        
+      const itemSize = activeItem?.size || 10;
+      
+      // Calculate minY based on whether it's a QR (must stay below h-32 header (~25%))
+      // For QRs, y is the center, so we ensure y - size/2 >= 25
+      const minY = isQr ? (24 + (itemSize / 2)) : 0;
+
       const updates = { 
         x: Math.max(0, Math.min(100, x)), 
-        y: Math.max(0, Math.min(100, y)) 
+        y: Math.max(minY, Math.min(100, y)) 
       };
 
-      if (dragTarget.current.type === 'qr') {
+      if (isQr) {
         updateQr(dragTarget.current.id, updates);
       } else {
         updateText(dragTarget.current.id, updates);
       }
+
     };
 
     const handleGlobalMouseUp = () => {
@@ -321,6 +335,154 @@ export default function CreateStandee() {
     }
   };
 
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+  const applyAiDesign = () => {
+    setIsAiProcessing(true);
+    const aiToast = toast.loading("AI Analyzing Layout & Trends...", {
+      style: {
+        borderRadius: '10px',
+        background: '#14213D',
+        color: '#fff',
+        border: '1px solid rgba(139, 92, 246, 0.2)'
+      }
+    });
+    
+    setTimeout(() => {
+      const aiPalettes = [
+        {
+          name: "Cyber Neon",
+          theme: themes[1], // Cyber Pink
+          title: "DIGITAL NEXUS",
+          subtitle: "FUTURE CONNECTED",
+          textColors: { title: '#ffffff', subtitle: '#f472b6' },
+          qrColors: ['#FF0055', '#00F3FF', '#7000FF', '#00FF95'], // Vivid RGB
+          addedTexts: [
+            { id: Date.now(), content: "SYSTEM ACTIVE", x: 50, y: 18, size: 12, color: "#f472b6", bold: true }
+          ]
+        },
+        {
+          name: "Midnight Luxury",
+          theme: themes[9], // Midnight
+          title: "PREMIUM ACCESS",
+          subtitle: "VIP ENTRANCE ONLY",
+          textColors: { title: '#ffffff', subtitle: '#94a3b8' },
+          qrColors: ['#FFD700', '#C0C0C0', '#E5E4E2', '#B87333'], // Metallic RGB
+          addedTexts: [
+            { id: Date.now() + 1, content: "SECURE NODE", x: 50, y: 85, size: 14, color: "#ffffff", bold: true }
+          ]
+        },
+        {
+          name: "Prism RGB",
+          theme: themes[16], 
+          title: "PRISM SPECTRUM",
+          subtitle: "FULL RGB ACTIVE",
+          textColors: { title: '#ffffff', subtitle: '#ffffff' },
+          qrColors: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00'], // Pure RGB
+          addedTexts: [
+            { id: Date.now() + 4, content: "RGB ENABLED", x: 50, y: 22, size: 12, color: "#ffffff", bold: true }
+          ]
+        },
+        {
+          name: "Crypto Command",
+          theme: themes[16], // Prism Matrix
+          title: "CRYPTO COMMAND",
+          subtitle: "BLOCKCHAIN VERIFIED",
+          textColors: { title: '#ffffff', subtitle: '#fbbf24' },
+          qrColors: ['#fbbf24', '#00f3ff', '#f472b6', '#ffffff'],
+          addedTexts: [
+            { id: Date.now() + 2, content: "SCAN TO TRANSACT", x: 50, y: 35, size: 11, color: "#fbbf24", bold: true, italic: true }
+          ]
+        },
+        {
+          name: "Deep Emerald",
+          theme: themes[2], // Emerald
+          title: "ECO NETWORK",
+          subtitle: "SUSTAINABLE SOLUTIONS",
+          textColors: { title: '#ffffff', subtitle: '#34d399' },
+          qrColors: ['#00FF95', '#34d399', '#ffffff', '#00FFA2'],
+          addedTexts: [
+            { id: Date.now() + 3, content: "VERIFIED SOURCE", x: 50, y: 20, size: 14, color: "#ffffff", bold: true }
+          ]
+        }
+      ];
+
+      const palette = aiPalettes[Math.floor(Math.random() * aiPalettes.length)];
+      
+      setTitle(palette.title);
+      setSubtitle(palette.subtitle);
+      setTheme(palette.theme);
+      setTextColors(palette.textColors);
+      
+      // Intelligent Spatial Mapping: Staggered Grid & Margin-Aware Scaling
+      setAddedQrs(prev => {
+        const count = prev.length;
+        const margin = 12; // 12% safe margin from boundaries
+        
+        // Vibrant QR palette based on the chosen design theme
+        const colorPool = palette.qrColors || ['#ffffff'];
+
+        return prev.map((qr, index) => {
+          let x, y, size;
+          
+          if (count === 1) {
+            x = 50; y = 55; size = 48;
+          } else if (count === 2) {
+            size = 38;
+            x = index === 0 ? margin + 15 : 100 - margin - 15;
+            y = index === 0 ? margin + 20 : 100 - margin - 20;
+          } else if (count === 3) {
+            size = 32;
+            const positions = [
+              { x: margin + 15, y: margin + 20 },
+              { x: 100 - margin - 15, y: 50 },
+              { x: margin + 15, y: 100 - margin - 20 }
+            ];
+            x = positions[index].x; y = positions[index].y;
+          } else if (count === 4) {
+             size = 30;
+             const topY = Math.max(25 + size/2, margin + 15);
+             const positions = [
+               { x: margin + 12, y: topY },
+               { x: 100 - margin - 12, y: topY },
+               { x: margin + 12, y: 100 - margin - 15 },
+               { x: 100 - margin - 12, y: 100 - margin - 15 }
+             ];
+             x = positions[index].x; y = positions[index].y;
+          } else {
+            // High-density staggered grid
+            size = Math.max(12, 60 / Math.sqrt(count));
+            const cols = Math.ceil(Math.sqrt(count));
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+            x = margin + (col * (100 - 2 * margin) / (cols - 1 || 1));
+            y = Math.max(25 + size/2, margin + 10 + (row * (80 - 2 * margin) / (Math.ceil(count / cols) - 1 || 1)));
+          }
+
+          return { 
+            ...qr, 
+            x, y, size, 
+            fgColor: colorPool[index % colorPool.length],
+            qrId: qr.qrId || (qrList.length > 0 ? qrList[0]._id : null) // Force activity
+          };
+        });
+      });
+      setAddedTexts(palette.addedTexts);
+      
+      toast.dismiss(aiToast);
+      toast.success(`AI Success: ${palette.name} Applied!`, {
+        icon: '✨',
+        style: {
+          borderRadius: '10px',
+          background: '#14213D',
+          color: '#fff',
+          border: '1px solid rgba(139, 92, 246, 0.4)'
+        }
+      });
+      setIsAiProcessing(false);
+    }, 2000);
+  };
+
   const handleDownload = () => {
     window.print();
   };
@@ -367,6 +529,20 @@ export default function CreateStandee() {
           </div>
 
           <div>
+             <button 
+               onClick={applyAiDesign}
+               disabled={isAiProcessing}
+               className="w-full bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-black italic tracking-widest uppercase py-4 rounded-xl flex justify-center items-center gap-3 shadow-[0_10px_40px_rgba(139,92,246,0.3)] transition-all transform hover:-translate-y-1 active:scale-95 group relative overflow-hidden mb-6"
+             >
+               <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" style={{ animation: isAiProcessing ? 'shimmer 1.5s infinite transition-linear' : 'none' }}></div>
+               {isAiProcessing ? (
+                 <Sparkles size={20} className="animate-spin text-yellow-300" />
+               ) : (
+                 <Sparkles size={20} className="text-yellow-300 group-hover:scale-125 transition-transform" />
+               )}
+               <span className="relative z-10">{isAiProcessing ? "AI ANALYZING..." : "AI DESIGN ENHANCER"}</span>
+             </button>
+
              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Canvas Configuration</h3>
              
              <div className="space-y-4">
@@ -456,6 +632,29 @@ export default function CreateStandee() {
                         {f.name}
                       </button>
                    ))}
+                </div>
+
+                {/* Custom Background Color */}
+                <div className="pt-4 border-t border-white/5 space-y-3">
+                   <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                         <Layers size={10} className="text-cyan-400" /> Background Aesthetic
+                      </label>
+                      {customBg && (
+                        <button onClick={() => setCustomBg(null)} className="text-[8px] font-black text-rose-500 hover:text-white transition-colors uppercase tracking-widest">Reset to Theme</button>
+                      )}
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <div className="flex-1 flex items-center gap-2 bg-[#0B132B] border border-white/10 rounded-xl px-3 py-2">
+                         <input 
+                            type="color" 
+                            value={customBg || '#0A1020'} 
+                            onChange={(e) => setCustomBg(e.target.value)}
+                            className="w-8 h-8 bg-transparent border-0 cursor-pointer p-0"
+                         />
+                         <span className="text-[10px] font-mono text-slate-500 uppercase">{customBg || 'THEME SYNC'}</span>
+                      </div>
+                   </div>
                 </div>
              </div>
           </div>
@@ -795,8 +994,11 @@ export default function CreateStandee() {
             >
                 <div 
                   ref={canvasRef}
-                  className={`relative bg-[#0A1020] border-2 border-white/5 overflow-hidden shadow-2xl flex flex-col transition-all duration-500 ${format.prevClass} ${format.printClass} print:border-black print:bg-white ${theme.shadow} print:shadow-none print:transform-none ${isDragging ? 'select-none' : ''}`}
+                  className={`relative overflow-hidden shadow-2xl flex flex-col transition-all duration-500 ${format.prevClass} ${format.printClass} print:border-black print:bg-white ${theme.shadow} print:shadow-none print:transform-none ${isDragging ? 'select-none' : ''} ${!customBg ? `bg-linear-to-br ${theme.from} ${theme.to} via-slate-900` : ''}`}
+                  style={customBg ? { backgroundColor: customBg } : {}}
                 >
+                  <div className={`absolute inset-0 ${!customBg ? 'bg-[#0A1020]/80' : ''} backdrop-blur-[2px] print:hidden`}></div>
+                  <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
                    {/* Accent Header */}
                        <div className={`w-full ${format.id === 'banner' ? 'h-full w-24' : 'h-32'} bg-linear-to-br ${theme.from} ${theme.to} relative overflow-hidden shrink-0 print:border-r print:border-black`}>
                           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
@@ -810,6 +1012,9 @@ export default function CreateStandee() {
                              </div>
                           </div>
                        </div>
+
+                    {/* Safe Zone Margin Line */}
+                    <div className="w-full h-0.5 bg-white/20 relative z-30 print:hidden shadow-[0_0_10px_rgba(255,255,255,0.1)]"></div>
 
                    {/* Central Content */}
                    <div className={`flex-1 flex flex-col relative ${format.id === 'banner' ? 'items-start justify-center p-12 lg:p-16' : 'items-center justify-start p-10 pt-16'}`}>
@@ -861,7 +1066,10 @@ export default function CreateStandee() {
                           aspectRatio: '1/1'
                         }}
                       >
-                         <div className="p-3 bg-white rounded-2xl shadow-2xl w-full h-full relative group">
+                         <div 
+                            className="p-3 bg-white rounded-2xl shadow-2xl w-full h-full relative group transition-all"
+                            style={{ border: `3px solid ${qr.fgColor || '#3b82f6'}22` }}
+                          >
                             {/* Drag Handle Icon for Desktop */}
                             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-cyan-500 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
                                <Move size={12} className="text-white" />

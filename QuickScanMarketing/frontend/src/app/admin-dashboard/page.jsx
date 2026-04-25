@@ -46,7 +46,7 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://127.0.0.1:5000");
 
        const [usersRes, qrRes, orderRes, metricsRes, telemetryRes, leadsRes] = await Promise.all([
         fetch(`${apiUrl}/admin/users`, { headers }),
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
       try {
         const token = localStorage.getItem('token');
         const headers = { 'Authorization': `Bearer ${token}` };
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://localhost:5000");
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : "http://127.0.0.1:5000");
         
         const [mRes, lRes] = await Promise.all([
           fetch(`${apiUrl}/admin/metrics`, { headers }),
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
     }
     try {
       const token = localStorage.getItem('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://127.0.0.1:5000');
       const res = await fetch(`${apiUrl}/qr/update/${id}`, {
         method: "PUT",
         headers: { 
